@@ -42,6 +42,7 @@ async fn main() {
         .route("/graphql", get(graphiql).post(graphql_handler))
         .nest_service("/static", ServeDir::new("assets"))
         .nest_service("/dist", ServeDir::new("dist"))
+        .nest_service("/assets", ServeDir::new("dist/assets"))
         .route("/", get(serve_index))
         .route("/plan/{id}", get(serve_index))
         .layer(CorsLayer::permissive())
