@@ -1,12 +1,13 @@
 use foxhole_shared::models::Plan;
-use redb::{Database, ReadableTableMetadata, TableDefinition};
-use std::path::Path;
+use redb::{Database, ReadableDatabase, ReadableTableMetadata, TableDefinition};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 const PLANS_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("plans");
 
 pub struct Storage {
     db: Database,
+    path: PathBuf,
 }
 
 impl Storage {
@@ -21,7 +22,7 @@ impl Storage {
         }
         write_txn.commit().expect("Failed to commit initial txn");
 
-        Arc::new(Storage { db })
+        Arc::new(Storage { db, path: path.to_path_buf() })
     }
 
     pub fn save_plan(&self, plan: &Plan) -> Result<(), String> {
@@ -58,6 +59,12 @@ impl Storage {
         let read_txn = self.db.begin_read().map_err(|e| e.to_string())?;
         let table = read_txn.open_table(PLANS_TABLE).map_err(|e| e.to_string())?;
         table.len().map_err(|e| e.to_string())
+    }
+
+    pub fn db_size_bytes(&self) -> Result<u64, String> {
+        std::fs::metadata(&self.path)
+            .map(|m| m.len())
+            .map_err(|e| e.to_string())
     }
 
     pub fn delete_plan(&self, id: &str) -> Result<bool, String> {

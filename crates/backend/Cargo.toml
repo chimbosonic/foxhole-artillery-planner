@@ -8,10 +8,14 @@ foxhole-shared = { path = "../shared" }
 axum = "0.8"
 async-graphql = "7"
 async-graphql-axum = "7"
-redb = "2"
+redb = "3"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
-tower-http = { version = "0.6", features = ["cors", "fs"] }
+tower-http = { version = "0.6", features = ["cors", "fs", "set-header"] }
+tower = "0.5"
 chrono = "0.4"
+
+[dev-dependencies]
+tempfile = "3"

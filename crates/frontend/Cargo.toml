@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 foxhole-shared = { path = "../shared", default-features = false }
 dioxus = { version = "0.7", features = ["web", "router"] }
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.13", features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 web-sys = { version = "0.3", features = ["Window", "Navigator", "Clipboard", "Document", "Element", "DomRect", "HtmlElement"] }

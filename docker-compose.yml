@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - foxhole-data:/app/data
+    environment:
+      - PORT=3000
+    restart: unless-stopped
+
+volumes:
+  foxhole-data:

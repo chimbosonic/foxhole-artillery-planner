@@ -28,10 +28,12 @@ fn PlanView(id: String) -> Element {
 }
 
 const CSS: Asset = asset!("/assets/main.css");
+const FAVICON: Asset = asset!("/assets/favicon.svg");
 
 #[allow(non_snake_case)]
 fn App() -> Element {
     rsx! {
+        document::Link { rel: "icon", r#type: "image/svg+xml", href: FAVICON }
         document::Stylesheet { href: CSS }
         Router::<Route> {}
     }

@@ -111,6 +111,7 @@ impl From<models::Plan> for GqlPlan {
 #[derive(SimpleObject)]
 pub struct GqlStats {
     pub total_plans: u64,
+    pub db_size_bytes: u64,
 }
 
 // Input types
@@ -272,7 +273,10 @@ impl QueryRoot {
         let total_plans = storage
             .count_plans()
             .map_err(async_graphql::Error::new)?;
-        Ok(GqlStats { total_plans })
+        let db_size_bytes = storage
+            .db_size_bytes()
+            .map_err(async_graphql::Error::new)?;
+        Ok(GqlStats { total_plans, db_size_bytes })
     }
 }
 
