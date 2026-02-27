@@ -2,6 +2,8 @@
 
 A web-based artillery calculator and planning tool for [Foxhole](https://www.foxholegame.com/). Place guns, targets, and spotters on real in-game maps to get accurate firing solutions including azimuth, distance, and wind-adjusted corrections.
 
+**Live at [arty.dp42.dev](https://arty.dp42.dev)**
+
 ## About
 
 This project calculates artillery firing solutions using the same formulas the game uses — azimuth, distance, accuracy radius, and optional wind compensation. You can:
