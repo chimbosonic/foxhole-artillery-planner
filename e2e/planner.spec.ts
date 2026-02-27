@@ -39,7 +39,7 @@ test.describe("Foxhole Artillery Planner", () => {
     const panelHeaders = page.locator(".panel h3");
     const texts = await panelHeaders.allTextContents();
     expect(texts).toContain("Map");
-    expect(texts).toContain("Weapon");
+    expect(texts).toContain("Active Weapon");
     expect(texts).toContain("Wind");
     expect(texts).toContain("Firing Solution");
     expect(texts).toContain("Plan");
@@ -277,60 +277,60 @@ test.describe("Foxhole Artillery Planner", () => {
     await expect(spotterLabel).toBeVisible({ timeout: 5000 });
   });
 
-  test("placing gun and target shows firing solution prompt", async ({
+  test("placing gun and target without weapon shows no firing solution", async ({
     page,
   }) => {
     const mapContainer = page.locator(".map-container");
     const box = await mapContainer.boundingBox();
     expect(box).not.toBeNull();
 
-    // Place gun
+    // Place gun (no weapon selected — default is empty)
     await page
       .locator(".placement-mode button", { hasText: "Gun" })
       .click();
     await mapContainer.click({ position: { x: box!.width * 0.3, y: box!.height * 0.5 } });
 
-    // Place target
+    // Place target (auto-pairs with the gun)
     await page
       .locator(".placement-mode button", { hasText: "Target" })
       .click();
     await mapContainer.click({ position: { x: box!.width * 0.7, y: box!.height * 0.5 } });
 
-    // Without a weapon selected, should prompt to select one
+    // Gun and target coordinates should appear, but no solution (no weapon)
     const solutionPanel = page.locator(
       '.panel:has(h3:text("Firing Solution"))',
     );
-    await expect(
-      solutionPanel.locator("text=Select a weapon"),
-    ).toBeVisible();
+    await expect(solutionPanel.locator(".coord-info.gun-coord")).toBeVisible({ timeout: 5000 });
+    await expect(solutionPanel.locator(".coord-info.target-coord")).toBeVisible();
+    await expect(solutionPanel.locator(".solution")).not.toBeVisible();
   });
 
-  test("selecting weapon after placing gun+target shows firing solution", async ({
+  test("weapon + gun + target placement shows firing solution", async ({
     page,
   }) => {
     const mapContainer = page.locator(".map-container");
     const box = await mapContainer.boundingBox();
     expect(box).not.toBeNull();
 
-    // Place gun
+    // Select a weapon FIRST so the gun inherits it on placement
+    const weaponSelect = page
+      .locator('.panel:has(h3:text("Active Weapon")) select')
+      .first();
+    const firstWeapon = weaponSelect.locator("optgroup option").first();
+    const weaponValue = await firstWeapon.getAttribute("value");
+    await weaponSelect.selectOption(weaponValue!);
+
+    // Place gun (inherits selected weapon)
     await page
       .locator(".placement-mode button", { hasText: "Gun" })
       .click();
     await mapContainer.click({ position: { x: box!.width * 0.3, y: box!.height * 0.5 } });
 
-    // Place target
+    // Place target (auto-pairs with the gun)
     await page
       .locator(".placement-mode button", { hasText: "Target" })
       .click();
     await mapContainer.click({ position: { x: box!.width * 0.7, y: box!.height * 0.3 } });
-
-    // Select a weapon (pick the first actual weapon option)
-    const weaponSelect = page
-      .locator('.panel:has(h3:text("Weapon")) select')
-      .first();
-    const firstWeapon = weaponSelect.locator("optgroup option").first();
-    const weaponValue = await firstWeapon.getAttribute("value");
-    await weaponSelect.selectOption(weaponValue!);
 
     // Wait for the firing solution to calculate
     const solutionPanel = page.locator(
@@ -356,19 +356,19 @@ test.describe("Foxhole Artillery Planner", () => {
     const box = await mapContainer.boundingBox();
     expect(box).not.toBeNull();
 
-    // Place gun
-    await page
-      .locator(".placement-mode button", { hasText: "Gun" })
-      .click();
-    await mapContainer.click({ position: { x: box!.width / 2, y: box!.height / 2 } });
-
-    // Select a weapon
+    // Select a weapon FIRST so the gun inherits it
     const weaponSelect = page
-      .locator('.panel:has(h3:text("Weapon")) select')
+      .locator('.panel:has(h3:text("Active Weapon")) select')
       .first();
     const firstWeapon = weaponSelect.locator("optgroup option").first();
     const weaponValue = await firstWeapon.getAttribute("value");
     await weaponSelect.selectOption(weaponValue!);
+
+    // Place gun (inherits selected weapon)
+    await page
+      .locator(".placement-mode button", { hasText: "Gun" })
+      .click();
+    await mapContainer.click({ position: { x: box!.width / 2, y: box!.height / 2 } });
 
     // Wait a moment for re-render
     await page.waitForTimeout(500);
@@ -698,6 +698,101 @@ test.describe("Foxhole Artillery Planner", () => {
     await expect(svg.locator('text:text("GUN")')).toBeVisible({ timeout: 5000 });
     await expect(svg.locator('text:text("GUN 1")')).not.toBeVisible();
     await expect(svg.locator('text:text("GUN 2")')).not.toBeVisible();
+  });
+
+  test("map bottom is reachable by panning at zoom 1", async ({ page }) => {
+    // Regression: clamp_pan used to assume content height == container height,
+    // preventing downward panning when the map image (width:100%, height:auto)
+    // was taller than the map-container.
+    const mapContainer = page.locator(".map-container");
+    const mapInner = page.locator(".map-inner");
+    const img = page.locator(".map-inner img");
+    await expect(img).toBeVisible();
+
+    const containerBox = await mapContainer.boundingBox();
+    const imgBox = await img.boundingBox();
+    expect(containerBox).not.toBeNull();
+    expect(imgBox).not.toBeNull();
+
+    // Only relevant when the image is taller than the container
+    if (imgBox!.height <= containerBox!.height) {
+      // Map fits — nothing to test; skip gracefully
+      return;
+    }
+
+    // The bottom portion of the image is clipped. Try to pan down.
+    const startX = containerBox!.x + containerBox!.width / 2;
+    const startY = containerBox!.y + containerBox!.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    // Drag upward to pan the map down (reveal bottom)
+    await page.mouse.move(startX, startY - 200, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+
+    // Extract translateY from the CSS transform matrix
+    const transform = await mapInner.evaluate(
+      (el) => getComputedStyle(el).transform,
+    );
+    // matrix(a, b, c, d, tx, ty) — ty is the 6th value
+    const matrixMatch = transform.match(
+      /matrix\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+)\)/,
+    );
+    expect(matrixMatch).not.toBeNull();
+    const ty = parseFloat(matrixMatch![6]);
+    // Pan should have moved negative (map scrolled down)
+    expect(ty).toBeLessThan(-10);
+  });
+
+  test("gun placed at bottom of map after panning down", async ({
+    page,
+  }) => {
+    // Pan the map down to reveal the bottom, then place a gun there.
+    // This verifies that the panning fix actually lets users interact
+    // with the bottom portion of the map.
+    const mapContainer = page.locator(".map-container");
+    const img = page.locator(".map-inner img");
+    await expect(img).toBeVisible();
+
+    const containerBox = await mapContainer.boundingBox();
+    const imgBox = await img.boundingBox();
+    expect(containerBox).not.toBeNull();
+    expect(imgBox).not.toBeNull();
+
+    // Only relevant when the image is taller than the container
+    if (imgBox!.height <= containerBox!.height) {
+      return;
+    }
+
+    // Pan down by dragging upward
+    const startX = containerBox!.x + containerBox!.width / 2;
+    const startY = containerBox!.y + containerBox!.height / 2;
+    const panAmount = imgBox!.height - containerBox!.height;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX, startY - panAmount, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+
+    // Now place a gun near the bottom of the visible area
+    await page
+      .locator(".placement-mode button", { hasText: "Gun" })
+      .click();
+
+    // Click near the bottom of the container (now showing the map bottom)
+    const clickX = containerBox!.x + containerBox!.width / 2;
+    const clickY = containerBox!.y + containerBox!.height * 0.9;
+    await page.mouse.click(clickX, clickY);
+
+    // Gun marker should appear
+    const svg = page.locator(".map-container svg");
+    await expect(svg.locator('text:text("GUN")')).toBeVisible({ timeout: 5000 });
+
+    // The coordinate should be in the bottom rows (row 12-15)
+    const gunTag = page.locator(".coord-tag.gun-tag");
+    await expect(gunTag).toBeVisible();
+    const text = await gunTag.textContent();
+    expect(text).toMatch(/GUN: [A-Q]1[2-5]k\d/);
   });
 
   test("changing map resets placed markers", async ({ page }) => {

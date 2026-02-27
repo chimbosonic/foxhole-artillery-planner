@@ -73,6 +73,11 @@ fn zoom_pan_at_cursor(
 }
 
 /// Clamp pan values so the map can't be dragged off-screen.
+///
+/// The map image is rendered at `width: 100%` of the container, so its actual
+/// rendered height is `container_w * (MAP_HEIGHT_PX / MAP_WIDTH_PX)`, which may
+/// exceed the container height.  We must account for this so the user can pan
+/// down to see the full map.
 fn clamp_pan(
     pan_x: f64,
     pan_y: f64,
@@ -80,8 +85,10 @@ fn clamp_pan(
     container_w: f64,
     container_h: f64,
 ) -> (f64, f64) {
-    let min_pan_x = -(container_w * zoom - container_w);
-    let min_pan_y = -(container_h * zoom - container_h);
+    let content_w = container_w * zoom;
+    let content_h = container_w * (grid::MAP_HEIGHT_PX / grid::MAP_WIDTH_PX) * zoom;
+    let min_pan_x = -(content_w - container_w).max(0.0);
+    let min_pan_y = -(content_h - container_h).max(0.0);
     (pan_x.clamp(min_pan_x, 0.0), pan_y.clamp(min_pan_y, 0.0))
 }
 
@@ -940,5 +947,36 @@ mod tests {
     fn test_marker_label_multiple() {
         assert_eq!(marker_label("GUN", 0, 3), "GUN 1");
         assert_eq!(marker_label("GUN", 2, 3), "GUN 3");
+    }
+
+    // --- clamp_pan tests ---
+
+    #[test]
+    fn test_clamp_pan_zoom1_map_fits_in_container() {
+        // Container is taller than the map: no panning needed
+        // container_w=1024, image_h = 1024*(888/1024) = 888, container_h=1000 > 888
+        let (px, py) = clamp_pan(0.0, 0.0, 1.0, 1024.0, 1000.0);
+        assert!((px - 0.0).abs() < 0.01);
+        assert!((py - 0.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_clamp_pan_zoom1_map_taller_than_container() {
+        // Wide container: image renders taller than container
+        // container_w=1600, image_h = 1600*(888/1024) ≈ 1387.5, container_h=1000
+        // min_pan_y = -(1387.5 - 1000) = -387.5
+        let (_, py) = clamp_pan(0.0, -200.0, 1.0, 1600.0, 1000.0);
+        assert!((py - (-200.0)).abs() < 0.01, "Should allow panning down");
+        let (_, py) = clamp_pan(0.0, -500.0, 1.0, 1600.0, 1000.0);
+        let min_y = -(1600.0 * (grid::MAP_HEIGHT_PX / grid::MAP_WIDTH_PX) - 1000.0);
+        assert!((py - min_y).abs() < 0.01, "Should clamp at min_pan_y");
+    }
+
+    #[test]
+    fn test_clamp_pan_prevents_positive_pan() {
+        // Pan should never go positive (would show empty space on left/top)
+        let (px, py) = clamp_pan(50.0, 50.0, 1.0, 800.0, 600.0);
+        assert!((px - 0.0).abs() < 0.01);
+        assert!((py - 0.0).abs() < 0.01);
     }
 }
