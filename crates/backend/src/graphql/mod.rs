@@ -264,7 +264,7 @@ impl QueryRoot {
         let storage = ctx.data::<Arc<Storage>>().unwrap();
         let plan = storage
             .get_plan(&id)
-            .map_err(|e| async_graphql::Error::new(e))?;
+            .map_err(async_graphql::Error::new)?;
         Ok(plan.map(GqlPlan::from))
     }
 }
@@ -308,7 +308,7 @@ impl MutationRoot {
 
         storage
             .save_plan(&plan)
-            .map_err(|e| async_graphql::Error::new(e))?;
+            .map_err(async_graphql::Error::new)?;
 
         Ok(GqlPlan::from(plan))
     }
@@ -322,7 +322,7 @@ impl MutationRoot {
 
         let mut plan = storage
             .get_plan(&input.id)
-            .map_err(|e| async_graphql::Error::new(e))?
+            .map_err(async_graphql::Error::new)?
             .ok_or_else(|| async_graphql::Error::new("Plan not found"))?;
 
         if let Some(name) = input.name {
@@ -363,7 +363,7 @@ impl MutationRoot {
 
         storage
             .save_plan(&plan)
-            .map_err(|e| async_graphql::Error::new(e))?;
+            .map_err(async_graphql::Error::new)?;
 
         Ok(GqlPlan::from(plan))
     }
@@ -376,7 +376,7 @@ impl MutationRoot {
         let storage = ctx.data::<Arc<Storage>>().unwrap();
         storage
             .delete_plan(&id)
-            .map_err(|e| async_graphql::Error::new(e))
+            .map_err(async_graphql::Error::new)
     }
 }
 

@@ -29,6 +29,7 @@ fn PlanView(id: String) -> Element {
 
 const CSS: Asset = asset!("/assets/main.css");
 
+#[allow(non_snake_case)]
 fn App() -> Element {
     rsx! {
         document::Stylesheet { href: CSS }

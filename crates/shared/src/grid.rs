@@ -4,7 +4,6 @@
 /// Grid: 17 columns (A-Q) x 15 rows (1-15).
 /// Each grid cell has a 3x3 keypad sub-grid (k1-k9).
 /// Map images are 1024x888 pixels.
-
 // World dimensions in meters
 pub const MAP_WIDTH_M: f64 = 2184.0;
 pub const MAP_HEIGHT_M: f64 = 1890.0;

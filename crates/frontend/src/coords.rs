@@ -56,40 +56,6 @@ pub fn click_to_map_px_zoomed(
     client_to_map_px_zoomed(container_x, container_y, rect.width(), rect.height(), zoom, pan_x, pan_y)
 }
 
-/// Get container-relative click coordinates using web_sys, then convert
-/// from rendered pixel space to map-image pixel space.
-///
-/// The map image may be scaled to fit the container. We need coordinates
-/// in the image's native 1024x888 space for consistent grid/meter conversion.
-pub fn click_to_map_px(client_x: f64, client_y: f64, container_id: &str) -> Option<(f64, f64)> {
-    let document = web_sys::window()?.document()?;
-    let element = document.get_element_by_id(container_id)?;
-    let rect = element.get_bounding_client_rect();
-
-    let container_x = client_x - rect.left();
-    let container_y = client_y - rect.top();
-
-    // The image is rendered at the container's size. Convert to native image coords.
-    let rendered_w = rect.width();
-    let rendered_h = rect.height();
-
-    if rendered_w <= 0.0 || rendered_h <= 0.0 {
-        return None;
-    }
-
-    let scale_x = grid::MAP_WIDTH_PX / rendered_w;
-    let scale_y = grid::MAP_HEIGHT_PX / rendered_h;
-
-    let img_x = container_x * scale_x;
-    let img_y = container_y * scale_y;
-
-    // Clamp to image bounds
-    let img_x = img_x.clamp(0.0, grid::MAP_WIDTH_PX);
-    let img_y = img_y.clamp(0.0, grid::MAP_HEIGHT_PX);
-
-    Some((img_x, img_y))
-}
-
 /// Convert map-image pixel coordinates to meters.
 pub fn map_px_to_meters(px_x: f64, px_y: f64) -> (f64, f64) {
     grid::px_to_meters(px_x, px_y)

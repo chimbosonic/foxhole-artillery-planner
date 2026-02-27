@@ -28,6 +28,7 @@ pub fn build_calculate_variables(
 }
 
 /// Build the variables JSON for a create plan mutation.
+#[allow(clippy::too_many_arguments)]
 pub fn build_create_plan_variables(
     name: &str,
     map_id: &str,
@@ -94,7 +95,7 @@ async fn query<T: for<'de> Deserialize<'de>>(
     };
 
     let resp = reqwest::Client::new()
-        .post(&api_url())
+        .post(api_url())
         .json(&req)
         .send()
         .await
@@ -229,6 +230,7 @@ pub struct CreatePlanResponse {
     pub create_plan: PlanData,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn create_plan(
     name: &str,
     map_id: &str,
