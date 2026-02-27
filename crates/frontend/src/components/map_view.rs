@@ -96,17 +96,22 @@ fn build_svg_content(
     spotter: Option<(f64, f64)>,
     weapon: &Option<WeaponData>,
     accuracy_radius_px: Option<f64>,
+    zoom: f64,
 ) -> String {
     let mut svg = String::with_capacity(8192);
 
     build_grid_lines(&mut svg);
     build_grid_labels(&mut svg);
-    build_range_circles(&mut svg, gun, weapon);
-    build_firing_line(&mut svg, gun, target);
-    build_accuracy_circle(&mut svg, target, accuracy_radius_px);
-    build_gun_marker(&mut svg, gun);
-    build_target_marker(&mut svg, target);
-    build_spotter_marker(&mut svg, spotter);
+    if zoom >= 3.0 {
+        build_keypad_lines(&mut svg);
+        build_keypad_labels(&mut svg);
+    }
+    build_range_circles(&mut svg, gun, weapon, zoom);
+    build_firing_line(&mut svg, gun, target, zoom);
+    build_accuracy_circle(&mut svg, target, accuracy_radius_px, zoom);
+    build_gun_marker(&mut svg, gun, zoom);
+    build_target_marker(&mut svg, target, zoom);
+    build_spotter_marker(&mut svg, spotter, zoom);
 
     svg
 }
@@ -147,19 +152,79 @@ fn build_grid_labels(svg: &mut String) {
     }
 }
 
+fn build_keypad_lines(svg: &mut String) {
+    let cell_w = grid::MAP_WIDTH_PX / grid::GRID_COLS as f64;
+    let cell_h = grid::MAP_HEIGHT_PX / grid::GRID_ROWS as f64;
+    let third_w = cell_w / 3.0;
+    let third_h = cell_h / 3.0;
+
+    for col in 0..grid::GRID_COLS {
+        let x0 = grid::grid_col_px(col);
+        for i in 1..3 {
+            let x = x0 + third_w * i as f64;
+            svg.push_str(&format!(
+                r#"<line x1="{x}" y1="0" x2="{x}" y2="{}" stroke="rgba(255,255,255,0.08)" stroke-width="0.3"/>"#,
+                grid::MAP_HEIGHT_PX
+            ));
+        }
+    }
+    for row in 0..grid::GRID_ROWS {
+        let y0 = grid::grid_row_px(row);
+        for i in 1..3 {
+            let y = y0 + third_h * i as f64;
+            svg.push_str(&format!(
+                r#"<line x1="0" y1="{y}" x2="{}" y2="{y}" stroke="rgba(255,255,255,0.08)" stroke-width="0.3"/>"#,
+                grid::MAP_WIDTH_PX
+            ));
+        }
+    }
+}
+
+fn build_keypad_labels(svg: &mut String) {
+    let cell_w = grid::MAP_WIDTH_PX / grid::GRID_COLS as f64;
+    let cell_h = grid::MAP_HEIGHT_PX / grid::GRID_ROWS as f64;
+    let third_w = cell_w / 3.0;
+    let third_h = cell_h / 3.0;
+
+    // Numpad layout: row 0 (top) = 7 8 9, row 1 (mid) = 4 5 6, row 2 (bot) = 1 2 3
+    const KEYPAD: [[u8; 3]; 3] = [[7, 8, 9], [4, 5, 6], [1, 2, 3]];
+
+    for col in 0..grid::GRID_COLS {
+        let x0 = grid::grid_col_px(col);
+        for row in 0..grid::GRID_ROWS {
+            let y0 = grid::grid_row_px(row);
+            for (kr, keypad_row) in KEYPAD.iter().enumerate() {
+                for (kc, &label) in keypad_row.iter().enumerate() {
+                    let cx = x0 + third_w * kc as f64 + third_w / 2.0;
+                    let cy = y0 + third_h * kr as f64 + third_h / 2.0;
+                    svg.push_str(&format!(
+                        r#"<text x="{cx}" y="{cy}" fill="rgba(255,255,255,0.2)" font-size="5" font-family="monospace" text-anchor="middle" dominant-baseline="central">{label}</text>"#
+                    ));
+                }
+            }
+        }
+    }
+}
+
 fn build_range_circles(
     svg: &mut String,
     gun: Option<(f64, f64)>,
     weapon: &Option<WeaponData>,
+    zoom: f64,
 ) {
     if let (Some((gx, gy)), Some(w)) = (gun, weapon) {
+        let s = 1.0 / zoom.min(5.0);
         let max_r = coords::meters_to_image_px(w.max_range);
+        let sw1 = 1.5 * s;
         svg.push_str(&format!(
-            r##"<circle cx="{gx}" cy="{gy}" r="{max_r}" fill="rgba(78,204,163,0.06)" stroke="#4ecca3" stroke-width="1.5" stroke-opacity="0.6"/>"##
+            r##"<circle cx="{gx}" cy="{gy}" r="{max_r}" fill="rgba(78,204,163,0.06)" stroke="#4ecca3" stroke-width="{sw1}" stroke-opacity="0.6"/>"##
         ));
         let min_r = coords::meters_to_image_px(w.min_range);
+        let sw2 = 1.0 * s;
+        let da1 = 4.0 * s;
+        let da2 = 3.0 * s;
         svg.push_str(&format!(
-            r##"<circle cx="{gx}" cy="{gy}" r="{min_r}" fill="rgba(233,69,96,0.06)" stroke="#e94560" stroke-width="1" stroke-dasharray="4 3" stroke-opacity="0.5"/>"##
+            r##"<circle cx="{gx}" cy="{gy}" r="{min_r}" fill="rgba(233,69,96,0.06)" stroke="#e94560" stroke-width="{sw2}" stroke-dasharray="{da1} {da2}" stroke-opacity="0.5"/>"##
         ));
     }
 }
@@ -168,10 +233,15 @@ fn build_firing_line(
     svg: &mut String,
     gun: Option<(f64, f64)>,
     target: Option<(f64, f64)>,
+    zoom: f64,
 ) {
     if let (Some((gx, gy)), Some((tx, ty))) = (gun, target) {
+        let s = 1.0 / zoom.min(5.0);
+        let sw = 1.5 * s;
+        let da1 = 6.0 * s;
+        let da2 = 4.0 * s;
         svg.push_str(&format!(
-            r#"<line x1="{gx}" y1="{gy}" x2="{tx}" y2="{ty}" stroke="rgba(233,69,96,0.7)" stroke-width="1.5" stroke-dasharray="6 4"/>"#
+            r#"<line x1="{gx}" y1="{gy}" x2="{tx}" y2="{ty}" stroke="rgba(233,69,96,0.7)" stroke-width="{sw}" stroke-dasharray="{da1} {da2}"/>"#
         ));
     }
 }
@@ -180,56 +250,77 @@ fn build_accuracy_circle(
     svg: &mut String,
     target: Option<(f64, f64)>,
     accuracy_radius_px: Option<f64>,
+    zoom: f64,
 ) {
     if let (Some((tx, ty)), Some(acc_r)) = (target, accuracy_radius_px) {
+        let s = 1.0 / zoom.min(5.0);
+        let sw = 1.0 * s;
+        let da1 = 3.0 * s;
+        let da2 = 2.0 * s;
         svg.push_str(&format!(
-            r##"<circle cx="{tx}" cy="{ty}" r="{acc_r}" fill="rgba(233,69,96,0.15)" stroke="#e94560" stroke-width="1" stroke-dasharray="3 2"/>"##
+            r##"<circle cx="{tx}" cy="{ty}" r="{acc_r}" fill="rgba(233,69,96,0.15)" stroke="#e94560" stroke-width="{sw}" stroke-dasharray="{da1} {da2}"/>"##
         ));
     }
 }
 
-fn build_gun_marker(svg: &mut String, gun: Option<(f64, f64)>) {
+fn build_gun_marker(svg: &mut String, gun: Option<(f64, f64)>, zoom: f64) {
     if let Some((gx, gy)) = gun {
+        let s = 1.0 / zoom.min(5.0);
+        let r = 6.0 * s;
+        let sw = 1.5 * s;
+        let fs = 8.0 * s;
+        let ty = gy - 10.0 * s;
+        let tsw = 2.0 * s;
         svg.push_str(&format!(
-            r##"<circle cx="{gx}" cy="{gy}" r="6" fill="#4ecca3" stroke="white" stroke-width="1.5"/>"##
+            r##"<circle cx="{gx}" cy="{gy}" r="{r}" fill="#4ecca3" stroke="white" stroke-width="{sw}"/>"##
         ));
         svg.push_str(&format!(
-            r##"<text x="{gx}" y="{}" fill="white" font-size="8" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="2" paint-order="stroke">GUN</text>"##,
-            gy - 10.0
+            r##"<text x="{gx}" y="{ty}" fill="white" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">GUN</text>"##
         ));
     }
 }
 
-fn build_target_marker(svg: &mut String, target: Option<(f64, f64)>) {
+fn build_target_marker(svg: &mut String, target: Option<(f64, f64)>, zoom: f64) {
     if let Some((tx, ty)) = target {
+        let s = 1.0 / zoom.min(5.0);
+        let arm = 8.0 * s;
+        let sw = 1.5 * s;
+        let r = 4.0 * s;
+        let fs = 8.0 * s;
+        let label_y = ty - 12.0 * s;
+        let tsw = 2.0 * s;
         svg.push_str(&format!(
-            r##"<line x1="{}" y1="{ty}" x2="{}" y2="{ty}" stroke="#e94560" stroke-width="1.5"/>"##,
-            tx - 8.0,
-            tx + 8.0
+            r##"<line x1="{}" y1="{ty}" x2="{}" y2="{ty}" stroke="#e94560" stroke-width="{sw}"/>"##,
+            tx - arm,
+            tx + arm
         ));
         svg.push_str(&format!(
-            r##"<line x1="{tx}" y1="{}" x2="{tx}" y2="{}" stroke="#e94560" stroke-width="1.5"/>"##,
-            ty - 8.0,
-            ty + 8.0
+            r##"<line x1="{tx}" y1="{}" x2="{tx}" y2="{}" stroke="#e94560" stroke-width="{sw}"/>"##,
+            ty - arm,
+            ty + arm
         ));
         svg.push_str(&format!(
-            r##"<circle cx="{tx}" cy="{ty}" r="4" fill="#e94560" stroke="white" stroke-width="1.5"/>"##
+            r##"<circle cx="{tx}" cy="{ty}" r="{r}" fill="#e94560" stroke="white" stroke-width="{sw}"/>"##
         ));
         svg.push_str(&format!(
-            r##"<text x="{tx}" y="{}" fill="#ffcccc" font-size="8" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="2" paint-order="stroke">TARGET</text>"##,
-            ty - 12.0
+            r##"<text x="{tx}" y="{label_y}" fill="#ffcccc" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">TARGET</text>"##
         ));
     }
 }
 
-fn build_spotter_marker(svg: &mut String, spotter: Option<(f64, f64)>) {
+fn build_spotter_marker(svg: &mut String, spotter: Option<(f64, f64)>, zoom: f64) {
     if let Some((sx, sy)) = spotter {
+        let s = 1.0 / zoom.min(5.0);
+        let r = 5.0 * s;
+        let sw = 1.5 * s;
+        let fs = 8.0 * s;
+        let label_y = sy - 10.0 * s;
+        let tsw = 2.0 * s;
         svg.push_str(&format!(
-            r##"<circle cx="{sx}" cy="{sy}" r="5" fill="#7ec8e3" stroke="white" stroke-width="1.5"/>"##
+            r##"<circle cx="{sx}" cy="{sy}" r="{r}" fill="#7ec8e3" stroke="white" stroke-width="{sw}"/>"##
         ));
         svg.push_str(&format!(
-            r##"<text x="{sx}" y="{}" fill="#cce7ff" font-size="8" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="2" paint-order="stroke">SPOTTER</text>"##,
-            sy - 10.0
+            r##"<text x="{sx}" y="{label_y}" fill="#cce7ff" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">SPOTTER</text>"##
         ));
     }
 }
@@ -268,14 +359,14 @@ pub fn MapView(
     let target = *target_pos.read();
     let spotter = *spotter_pos.read();
 
-    let svg_content = build_svg_content(gun, target, spotter, &selected_weapon, accuracy_radius_px);
+    // Snapshot current transform for the render
+    let cur_zoom = *zoom.read();
+
+    let svg_content = build_svg_content(gun, target, spotter, &selected_weapon, accuracy_radius_px, cur_zoom);
     let svg_html = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;">{}</svg>"#,
         grid::MAP_WIDTH_PX, grid::MAP_HEIGHT_PX, svg_content
     );
-
-    // Snapshot current transform for the render
-    let cur_zoom = *zoom.read();
     let cur_pan_x = *pan_x.read();
     let cur_pan_y = *pan_y.read();
     let dragging = *is_dragging.read();
