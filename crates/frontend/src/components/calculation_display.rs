@@ -48,6 +48,45 @@ pub fn CalculationDisplay(
                                     }
                                 }
                             }
+                            if is_selected {
+                                {
+                                    let current_slug = wids.get(i).cloned().unwrap_or_default();
+                                    rsx! {
+                                        select {
+                                            class: "inline-weapon-select",
+                                            value: "{current_slug}",
+                                            onchange: {
+                                                let idx = i;
+                                                move |evt: Event<FormData>| {
+                                                    let new_slug = evt.value().to_string();
+                                                    if let Some(entry) = gun_weapon_ids.write().get_mut(idx) {
+                                                        *entry = new_slug;
+                                                    }
+                                                }
+                                            },
+                                            option { value: "", "-- Select Weapon --" }
+                                            optgroup { label: "Colonial",
+                                                for w in &colonial {
+                                                    option {
+                                                        value: "{w.slug}",
+                                                        selected: current_slug == w.slug,
+                                                        "{w.display_name} ({w.min_range}-{w.max_range}m)"
+                                                    }
+                                                }
+                                            }
+                                            optgroup { label: "Warden",
+                                                for w in &warden {
+                                                    option {
+                                                        value: "{w.slug}",
+                                                        selected: current_slug == w.slug,
+                                                        "{w.display_name} ({w.min_range}-{w.max_range}m)"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -300,6 +339,45 @@ pub fn CalculationDisplay(
                             },
                             p { class: "coord-info",
                                 "Gun {i + 1}: {coords::format_px_as_grid(g.0, g.1)} (unpaired)"
+                            }
+                        }
+                        if is_selected {
+                            {
+                                let current_slug = wids.get(i).cloned().unwrap_or_default();
+                                rsx! {
+                                    select {
+                                        class: "inline-weapon-select",
+                                        value: "{current_slug}",
+                                        onchange: {
+                                            let idx = i;
+                                            move |evt: Event<FormData>| {
+                                                let new_slug = evt.value().to_string();
+                                                if let Some(entry) = gun_weapon_ids.write().get_mut(idx) {
+                                                    *entry = new_slug;
+                                                }
+                                            }
+                                        },
+                                        option { value: "", "-- Select Weapon --" }
+                                        optgroup { label: "Colonial",
+                                            for w in &colonial {
+                                                option {
+                                                    value: "{w.slug}",
+                                                    selected: current_slug == w.slug,
+                                                    "{w.display_name} ({w.min_range}-{w.max_range}m)"
+                                                }
+                                            }
+                                        }
+                                        optgroup { label: "Warden",
+                                            for w in &warden {
+                                                option {
+                                                    value: "{w.slug}",
+                                                    selected: current_slug == w.slug,
+                                                    "{w.display_name} ({w.min_range}-{w.max_range}m)"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
