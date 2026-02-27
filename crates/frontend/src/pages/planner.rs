@@ -168,6 +168,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     solution: firing_solution.read().clone(),
                     gun_pos: *gun_pos.read(),
                     target_pos: *target_pos.read(),
+                    spotter_pos: *spotter_pos.read(),
                 }
 
                 PlanPanel {

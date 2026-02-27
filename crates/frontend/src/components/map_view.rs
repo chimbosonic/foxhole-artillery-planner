@@ -497,6 +497,11 @@ pub fn MapView(
                         "TGT: {coords::format_px_as_grid(pos.0, pos.1)}"
                     }
                 }
+                if let Some(pos) = spotter {
+                    span { class: "coord-tag spotter-tag",
+                        "SPT: {coords::format_px_as_grid(pos.0, pos.1)}"
+                    }
+                }
             }
         }
     }

@@ -8,6 +8,7 @@ pub fn CalculationDisplay(
     solution: Option<FiringSolutionData>,
     gun_pos: Option<(f64, f64)>,
     target_pos: Option<(f64, f64)>,
+    spotter_pos: Option<(f64, f64)>,
 ) -> Element {
     match solution {
         None => rsx! {
@@ -22,6 +23,11 @@ pub fn CalculationDisplay(
                 if let Some(t) = target_pos {
                     p { class: "coord-info",
                         "Target: {coords::format_px_as_grid(t.0, t.1)}"
+                    }
+                }
+                if let Some(s) = spotter_pos {
+                    p { class: "coord-info",
+                        "Spotter: {coords::format_px_as_grid(s.0, s.1)}"
                     }
                 }
                 if gun_pos.is_none() || target_pos.is_none() {
@@ -53,6 +59,11 @@ pub fn CalculationDisplay(
                         if let Some(t) = target_pos {
                             span { class: "coord-info target-coord",
                                 "Tgt: {coords::format_px_as_grid(t.0, t.1)}"
+                            }
+                        }
+                        if let Some(s) = spotter_pos {
+                            span { class: "coord-info spotter-coord",
+                                "Spt: {coords::format_px_as_grid(s.0, s.1)}"
                             }
                         }
                     }
