@@ -1,0 +1,142 @@
+[
+  {
+    "faction": "Both",
+    "displayName": "Storm Cannon",
+    "minRange": 400,
+    "maxRange": 1000,
+    "accRadius": [50, 50]
+  },
+  {
+    "faction": "Both",
+    "displayName": "Tempest Cannon RA-2",
+    "minRange": 350,
+    "maxRange": 500,
+    "accRadius": [50, 50]
+  },
+  {
+    "faction": "Both",
+    "displayName": "Cremari Mortar",
+    "minRange": 45,
+    "maxRange": 80,
+    "accRadius": [5.5, 12]
+  },
+  {
+    "faction": "Colonial",
+    "displayName": "120-68 \"Koronides\" Field Gun",
+    "minRange": 100,
+    "maxRange": 250,
+    "accRadius": [22.5, 30]
+  },
+  {
+    "faction": "Colonial",
+    "displayName": "Conquerer/Titan-120mm",
+    "minRange": 100,
+    "maxRange": 200,
+    "accRadius": [2.5, 8.5]
+  },
+  {
+    "faction": "Colonial",
+    "displayName": "AC-b Trident",
+    "minRange": 100,
+    "maxRange": 225,
+    "accRadius": [0, 0]
+  },
+  {
+    "faction": "Colonial",
+    "displayName": "Titan-150mm",
+    "minRange": 100,
+    "maxRange": 225,
+    "accRadius": [2.5, 8.5]
+  },
+  {
+    "faction": "Colonial",
+    "displayName": "50-500 \"Thunderbolt\" Cannon",
+    "minRange": 200,
+    "maxRange": 350,
+    "accRadius": [32.5, 40]
+  },
+  {
+    "faction": "Colonial",
+    "displayName": "R-17 \"Retiarius\" Skirmisher",
+    "minRange": 225,
+    "maxRange": 350,
+    "accRadius": [25, 41.5]
+  },
+  {
+    "faction": "Colonial",
+    "displayName": "DAE 3b-2 \"Hades' Net\"",
+    "minRange": 200,
+    "maxRange": 425,
+    "accRadius": [25, 41.5]
+  },
+  {
+    "faction": "Colonial",
+    "displayName": "Lance-46 \"Sarissa\"",
+    "minRange": 120,
+    "maxRange": 250,
+    "accRadius": [25, 35]
+  },
+  {
+    "faction": "Colonial",
+    "displayName": "T13 \"Deioneus\" Rocket Battery",
+    "minRange": 250,
+    "maxRange": 300,
+    "accRadius": [30, 41.5]
+  },
+  {
+    "faction": "Warden",
+    "displayName": "Huber Lariat 120mm",
+    "minRange": 100,
+    "maxRange": 300,
+    "accRadius": [25, 35]
+  },
+  {
+    "faction": "Warden",
+    "displayName": "Blacksteele/Callahan-120mm",
+    "minRange": 100,
+    "maxRange": 200,
+    "accRadius": [2.5, 8.5]
+  },
+  {
+    "faction": "Warden",
+    "displayName": "Callahan-150mm",
+    "minRange": 100,
+    "maxRange": 225,
+    "accRadius": [2.5, 8.5]
+  },
+  {
+    "faction": "Warden",
+    "displayName": "Flood Mk. IX Stain",
+    "minRange": 120,
+    "maxRange": 250,
+    "accRadius": [25, 35]
+  },
+  {
+    "faction": "Warden",
+    "displayName": "Huber Exalt 150mm",
+    "minRange": 100,
+    "maxRange": 300,
+    "accRadius": [25, 35]
+  },
+  {
+    "faction": "Warden",
+    "displayName": "Niska-Rycker Mk. IX Skycaller",
+    "minRange": 200,
+    "maxRange": 275,
+    "accRadius": [25, 37.5]
+  },
+  {
+    "faction": "Warden",
+    "displayName": "Rycker 4/3-F Wasp Nest",
+    "minRange": 225,
+    "maxRange": 325,
+    "accRadius": [25, 37.5]
+  },
+  {
+    "faction": "Warden",
+    "displayName": "King Jester - Mk. I-1",
+    "minRange": 200,
+    "maxRange": 350,
+    "accRadius": [30, 41]
+  }
+]
