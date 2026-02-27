@@ -84,7 +84,17 @@ body {
     -webkit-user-select: none;
 }
 
-.map-container img {
+.map-container.dragging {
+    cursor: grabbing;
+}
+
+.map-inner {
+    position: relative;
+    transform-origin: 0 0;
+    will-change: transform;
+}
+
+.map-inner img {
     display: block;
     width: 100%;
     height: auto;

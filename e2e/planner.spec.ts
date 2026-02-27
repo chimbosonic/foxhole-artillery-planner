@@ -393,6 +393,167 @@ test.describe("Foxhole Artillery Planner", () => {
     await expect(targetBtn).not.toHaveClass(/active-target/);
   });
 
+  test("scroll wheel zooms in and increases transform scale", async ({
+    page,
+  }) => {
+    const mapContainer = page.locator(".map-container");
+    const mapInner = page.locator(".map-inner");
+    await expect(mapContainer).toBeVisible();
+
+    // Get initial transform
+    const initialTransform = await mapInner.evaluate(
+      (el) => getComputedStyle(el).transform,
+    );
+
+    // Scroll up (zoom in) on the map
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.wheel(0, -300);
+
+    // Wait for the transform to update
+    await page.waitForTimeout(200);
+
+    const newTransform = await mapInner.evaluate(
+      (el) => getComputedStyle(el).transform,
+    );
+    // Transform should have changed (zoomed in)
+    expect(newTransform).not.toBe(initialTransform);
+
+    // Extract scale from the matrix transform
+    const scaleMatch = newTransform.match(/matrix\(([^,]+)/);
+    if (scaleMatch) {
+      const scale = parseFloat(scaleMatch[1]);
+      expect(scale).toBeGreaterThan(1.0);
+    }
+  });
+
+  test("scroll wheel zoom does not go below 1.0", async ({ page }) => {
+    const mapContainer = page.locator(".map-container");
+    const mapInner = page.locator(".map-inner");
+    await expect(mapContainer).toBeVisible();
+
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+
+    // Scroll down (zoom out) — should stay at 1.0
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.wheel(0, 300);
+    await page.waitForTimeout(200);
+
+    const transform = await mapInner.evaluate(
+      (el) => getComputedStyle(el).transform,
+    );
+    // Should still be identity (scale=1) or "none"
+    const scaleMatch = transform.match(/matrix\(([^,]+)/);
+    if (scaleMatch) {
+      const scale = parseFloat(scaleMatch[1]);
+      expect(scale).toBeCloseTo(1.0, 1);
+    }
+  });
+
+  test("click-drag pans the map", async ({ page }) => {
+    const mapContainer = page.locator(".map-container");
+    const mapInner = page.locator(".map-inner");
+    await expect(mapContainer).toBeVisible();
+
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+
+    // First zoom in so there's room to pan
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.wheel(0, -500);
+    await page.waitForTimeout(200);
+
+    // Get transform before drag
+    const beforeDrag = await mapInner.evaluate(
+      (el) => getComputedStyle(el).transform,
+    );
+
+    // Perform a click-drag
+    const startX = box!.x + box!.width / 2;
+    const startY = box!.y + box!.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX - 50, startY - 30, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+
+    const afterDrag = await mapInner.evaluate(
+      (el) => getComputedStyle(el).transform,
+    );
+    // Transform should have changed (panned)
+    expect(afterDrag).not.toBe(beforeDrag);
+  });
+
+  test("click without drag still places markers correctly", async ({
+    page,
+  }) => {
+    const mapContainer = page.locator(".map-container");
+    await expect(mapContainer).toBeVisible();
+
+    // Zoom in first
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.wheel(0, -300);
+    await page.waitForTimeout(200);
+
+    // Click (no drag) to place gun marker
+    await page
+      .locator(".placement-mode button", { hasText: "Gun" })
+      .click();
+    const updatedBox = await mapContainer.boundingBox();
+    await page.mouse.click(
+      updatedBox!.x + updatedBox!.width / 2,
+      updatedBox!.y + updatedBox!.height / 2,
+    );
+
+    // Gun marker should appear
+    const svg = page.locator(".map-container svg");
+    const gunMarker = svg.locator('text:text("GUN")');
+    await expect(gunMarker).toBeVisible({ timeout: 5000 });
+  });
+
+  test("double-click resets zoom to 1.0", async ({ page }) => {
+    const mapContainer = page.locator(".map-container");
+    const mapInner = page.locator(".map-inner");
+    await expect(mapContainer).toBeVisible();
+
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+
+    // Zoom in
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.wheel(0, -500);
+    await page.waitForTimeout(200);
+
+    // Verify zoomed in
+    const zoomedTransform = await mapInner.evaluate(
+      (el) => getComputedStyle(el).transform,
+    );
+    const zoomMatch = zoomedTransform.match(/matrix\(([^,]+)/);
+    if (zoomMatch) {
+      expect(parseFloat(zoomMatch[1])).toBeGreaterThan(1.0);
+    }
+
+    // Double-click to reset
+    await page.mouse.dblclick(
+      box!.x + box!.width / 2,
+      box!.y + box!.height / 2,
+    );
+    await page.waitForTimeout(200);
+
+    // Should be back to scale=1
+    const resetTransform = await mapInner.evaluate(
+      (el) => getComputedStyle(el).transform,
+    );
+    const resetMatch = resetTransform.match(/matrix\(([^,]+)/);
+    if (resetMatch) {
+      expect(parseFloat(resetMatch[1])).toBeCloseTo(1.0, 1);
+    }
+  });
+
   test("changing map resets placed markers", async ({ page }) => {
     const mapContainer = page.locator(".map-container");
     const box = await mapContainer.boundingBox();

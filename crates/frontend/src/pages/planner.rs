@@ -222,6 +222,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
             // Map view
             if !current_map.is_empty() {
                 MapView {
+                    key: "{current_map}",
                     map_file_name: current_map,
                     placement_mode: placement_mode,
                     gun_pos: gun_pos,
