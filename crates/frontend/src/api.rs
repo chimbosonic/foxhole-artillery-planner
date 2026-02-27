@@ -36,12 +36,19 @@ pub fn build_create_plan_variables(
     gun_positions: &[(f64, f64)],
     target_positions: &[(f64, f64)],
     spotter_positions: &[(f64, f64)],
+    gun_target_indices: &[Option<usize>],
     wind_direction: Option<f64>,
     wind_strength: Option<u32>,
 ) -> serde_json::Value {
     let to_json = |positions: &[(f64, f64)]| -> serde_json::Value {
         positions.iter().map(|(x, y)| serde_json::json!({"x": x, "y": y})).collect()
     };
+    let indices_json: serde_json::Value = gun_target_indices.iter()
+        .map(|o| match o {
+            Some(v) => serde_json::json!(*v as i32),
+            None => serde_json::Value::Null,
+        })
+        .collect();
     serde_json::json!({
         "input": {
             "name": name,
@@ -50,6 +57,7 @@ pub fn build_create_plan_variables(
             "gunPositions": to_json(gun_positions),
             "targetPositions": to_json(target_positions),
             "spotterPositions": to_json(spotter_positions),
+            "gunTargetIndices": indices_json,
             "windDirection": wind_direction,
             "windStrength": wind_strength
         }
@@ -165,6 +173,8 @@ pub struct PlanData {
     pub gun_positions: Vec<PositionData>,
     pub target_positions: Vec<PositionData>,
     pub spotter_positions: Vec<PositionData>,
+    #[serde(default)]
+    pub gun_target_indices: Vec<Option<i32>>,
     pub wind_direction: Option<f64>,
     pub wind_strength: u32,
 }
@@ -244,11 +254,13 @@ pub async fn create_plan(
     gun_positions: &[(f64, f64)],
     target_positions: &[(f64, f64)],
     spotter_positions: &[(f64, f64)],
+    gun_target_indices: &[Option<usize>],
     wind_direction: Option<f64>,
     wind_strength: Option<u32>,
 ) -> Result<PlanData, String> {
     let variables = build_create_plan_variables(
-        name, map_id, weapon_ids, gun_positions, target_positions, spotter_positions, wind_direction, wind_strength,
+        name, map_id, weapon_ids, gun_positions, target_positions, spotter_positions,
+        gun_target_indices, wind_direction, wind_strength,
     );
 
     let resp: CreatePlanResponse = query(
@@ -256,7 +268,7 @@ pub async fn create_plan(
             createPlan(input: $input) {
                 id name mapId weaponIds
                 gunPositions { x y } targetPositions { x y } spotterPositions { x y }
-                windDirection windStrength
+                gunTargetIndices windDirection windStrength
             }
         }"#,
         Some(variables),
@@ -278,7 +290,7 @@ pub async fn fetch_plan(id: &str) -> Result<Option<PlanData>, String> {
             plan(id: $id) {
                 id name mapId weaponIds
                 gunPositions { x y } targetPositions { x y } spotterPositions { x y }
-                windDirection windStrength
+                gunTargetIndices windDirection windStrength
             }
         }"#,
         Some(variables),
@@ -354,7 +366,7 @@ mod tests {
 
     #[test]
     fn test_plan_data_deserializes() {
-        let json = r#"{"plan":{"id":"abc-123","name":"Test Plan","mapId":"deadlands","weaponIds":["storm-cannon"],"gunPositions":[{"x":100.0,"y":200.0}],"targetPositions":[{"x":300.0,"y":400.0}],"spotterPositions":[],"windDirection":90.0,"windStrength":3}}"#;
+        let json = r#"{"plan":{"id":"abc-123","name":"Test Plan","mapId":"deadlands","weaponIds":["storm-cannon"],"gunPositions":[{"x":100.0,"y":200.0}],"targetPositions":[{"x":300.0,"y":400.0}],"spotterPositions":[],"gunTargetIndices":[0],"windDirection":90.0,"windStrength":3}}"#;
         let resp: FetchPlanResponse = serde_json::from_str(json).unwrap();
         let plan = resp.plan.unwrap();
         assert_eq!(plan.id, "abc-123");
@@ -362,7 +374,25 @@ mod tests {
         assert_eq!(plan.gun_positions.len(), 1);
         assert_eq!(plan.gun_positions[0].x, 100.0);
         assert!(plan.spotter_positions.is_empty());
+        assert_eq!(plan.gun_target_indices, vec![Some(0)]);
         assert_eq!(plan.wind_strength, 3);
+    }
+
+    #[test]
+    fn test_plan_data_deserializes_without_gun_target_indices() {
+        // Old plans without gunTargetIndices field should default to empty vec
+        let json = r#"{"plan":{"id":"abc-123","name":"Old Plan","mapId":"deadlands","weaponIds":["mortar"],"gunPositions":[{"x":10.0,"y":20.0}],"targetPositions":[{"x":30.0,"y":40.0}],"spotterPositions":[],"windDirection":null,"windStrength":0}}"#;
+        let resp: FetchPlanResponse = serde_json::from_str(json).unwrap();
+        let plan = resp.plan.unwrap();
+        assert!(plan.gun_target_indices.is_empty());
+    }
+
+    #[test]
+    fn test_plan_data_deserializes_mixed_gun_target_indices() {
+        let json = r#"{"plan":{"id":"abc-123","name":"Plan","mapId":"deadlands","weaponIds":["mortar","mortar"],"gunPositions":[{"x":10.0,"y":20.0},{"x":50.0,"y":60.0}],"targetPositions":[{"x":30.0,"y":40.0}],"spotterPositions":[],"gunTargetIndices":[0,null],"windDirection":null,"windStrength":0}}"#;
+        let resp: FetchPlanResponse = serde_json::from_str(json).unwrap();
+        let plan = resp.plan.unwrap();
+        assert_eq!(plan.gun_target_indices, vec![Some(0), None]);
     }
 
     #[test]
@@ -410,6 +440,7 @@ mod tests {
         let vars = build_create_plan_variables(
             "My Plan", "deadlands", &["storm-cannon".to_string()],
             &[(10.0, 20.0)], &[(30.0, 40.0)], &[],
+            &[Some(0)],
             Some(180.0), Some(2),
         );
         assert_eq!(vars["input"]["name"], "My Plan");
@@ -418,6 +449,7 @@ mod tests {
         assert_eq!(vars["input"]["gunPositions"][0]["x"], 10.0);
         assert_eq!(vars["input"]["gunPositions"][0]["y"], 20.0);
         assert_eq!(vars["input"]["targetPositions"][0]["x"], 30.0);
+        assert_eq!(vars["input"]["gunTargetIndices"][0], 0);
         assert_eq!(vars["input"]["windStrength"], 2);
     }
 
@@ -425,12 +457,25 @@ mod tests {
     fn test_build_create_plan_variables_empty() {
         let vars = build_create_plan_variables(
             "Empty Plan", "deadlands", &["mortar".to_string()],
-            &[], &[], &[],
+            &[], &[], &[], &[],
             None, None,
         );
         assert_eq!(vars["input"]["gunPositions"].as_array().unwrap().len(), 0);
         assert_eq!(vars["input"]["targetPositions"].as_array().unwrap().len(), 0);
+        assert_eq!(vars["input"]["gunTargetIndices"].as_array().unwrap().len(), 0);
         assert!(vars["input"]["windDirection"].is_null());
+    }
+
+    #[test]
+    fn test_build_create_plan_variables_mixed_pairings() {
+        let vars = build_create_plan_variables(
+            "Mixed", "deadlands", &["mortar".to_string(), "mortar".to_string()],
+            &[(10.0, 20.0), (50.0, 60.0)], &[(30.0, 40.0)], &[],
+            &[Some(0), None],
+            None, None,
+        );
+        assert_eq!(vars["input"]["gunTargetIndices"][0], 0);
+        assert!(vars["input"]["gunTargetIndices"][1].is_null());
     }
 
     // --- URL builder ---

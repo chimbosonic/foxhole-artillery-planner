@@ -83,6 +83,9 @@ pub struct Plan {
     pub target_positions: Vec<Position>,
     #[serde(default)]
     pub spotter_positions: Vec<Position>,
+    /// Explicit gun→target pairing: one entry per gun, `Some(idx)` = paired with target at that index.
+    #[serde(default)]
+    pub gun_target_indices: Vec<Option<u32>>,
     pub wind_direction: Option<f64>,
     pub wind_strength: u8,
     pub created_at: String,
@@ -127,4 +130,55 @@ pub struct FiringSolution {
     pub wind_adjusted_azimuth: Option<f64>,
     pub wind_adjusted_distance: Option<f64>,
     pub wind_offset_meters: Option<f64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gun_target_indices_serialization_roundtrip() {
+        let indices: Vec<Option<u32>> = vec![Some(0), None, Some(2)];
+        let json = serde_json::to_string(&indices).unwrap();
+        assert_eq!(json, "[0,null,2]");
+        let parsed: Vec<Option<u32>> = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, indices);
+    }
+
+    #[test]
+    fn test_gun_target_indices_empty_default() {
+        // Simulates an old plan JSON without the gun_target_indices field
+        #[derive(Deserialize)]
+        struct PartialPlan {
+            #[serde(default)]
+            gun_target_indices: Vec<Option<u32>>,
+        }
+        let json = r#"{}"#;
+        let plan: PartialPlan = serde_json::from_str(json).unwrap();
+        assert!(plan.gun_target_indices.is_empty());
+    }
+
+    #[test]
+    fn test_gun_target_indices_with_values() {
+        #[derive(Deserialize)]
+        struct PartialPlan {
+            #[serde(default)]
+            gun_target_indices: Vec<Option<u32>>,
+        }
+        let json = r#"{"gun_target_indices":[0,null,1]}"#;
+        let plan: PartialPlan = serde_json::from_str(json).unwrap();
+        assert_eq!(plan.gun_target_indices, vec![Some(0), None, Some(1)]);
+    }
+
+    #[test]
+    fn test_weapon_slug_generation() {
+        let weapon = Weapon {
+            faction: Faction::Colonial,
+            display_name: "Storm Cannon".to_string(),
+            min_range: 400.0,
+            max_range: 1000.0,
+            acc_radius: [50.0, 50.0],
+        };
+        assert_eq!(weapon.slug(), "storm-cannon");
+    }
 }

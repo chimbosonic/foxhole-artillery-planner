@@ -11,137 +11,31 @@ pub fn CalculationDisplay(
     target_positions: Vec<(f64, f64)>,
     spotter_positions: Vec<(f64, f64)>,
     gun_weapon_ids: Signal<Vec<String>>,
+    gun_target_indices: Signal<Vec<Option<usize>>>,
     weapons: Vec<WeaponData>,
     selected_marker: Signal<Option<SelectedMarker>>,
 ) -> Element {
-    let num_pairs = gun_positions.len().min(target_positions.len());
     let has_any_solution = solutions.iter().any(|s| s.is_some());
-    let multiple_pairs = num_pairs > 1;
     let cur_selected = *selected_marker.read();
     let wids = gun_weapon_ids.read().clone();
+    let pairings = gun_target_indices.read().clone();
+    let multiple_guns = gun_positions.len() > 1;
 
     let colonial: Vec<&WeaponData> = weapons.iter().filter(|w| w.faction == "COLONIAL" || w.faction == "BOTH").collect();
     let warden: Vec<&WeaponData> = weapons.iter().filter(|w| w.faction == "WARDEN" || w.faction == "BOTH").collect();
 
+    // Find which targets are assigned to at least one gun
+    let assigned_targets: Vec<bool> = (0..target_positions.len())
+        .map(|ti| pairings.contains(&Some(ti)))
+        .collect();
+
     // No solutions at all — show coordinate info and prompt
-    if !has_any_solution {
+    if !has_any_solution && gun_positions.is_empty() && target_positions.is_empty() {
         return rsx! {
             div { class: "panel",
                 h3 { "Firing Solution" }
-                // Show grid coords even without a full solution
-                for (i, g) in gun_positions.iter().enumerate() {
-                    {
-                        let is_selected = cur_selected == Some(SelectedMarker { kind: MarkerKind::Gun, index: i });
-                        let cls = if is_selected { "marker-item selected" } else { "marker-item" };
-                        rsx! {
-                            div {
-                                class: "{cls}",
-                                onclick: {
-                                    let sel = if is_selected { None } else { Some(SelectedMarker { kind: MarkerKind::Gun, index: i }) };
-                                    move |_| selected_marker.set(sel)
-                                },
-                                p { class: "coord-info",
-                                    if gun_positions.len() > 1 {
-                                        "Gun {i + 1}: {coords::format_px_as_grid(g.0, g.1)}"
-                                    } else {
-                                        "Gun: {coords::format_px_as_grid(g.0, g.1)}"
-                                    }
-                                }
-                            }
-                            if is_selected {
-                                {
-                                    let current_slug = wids.get(i).cloned().unwrap_or_default();
-                                    rsx! {
-                                        select {
-                                            class: "inline-weapon-select",
-                                            value: "{current_slug}",
-                                            onchange: {
-                                                let idx = i;
-                                                move |evt: Event<FormData>| {
-                                                    let new_slug = evt.value().to_string();
-                                                    if let Some(entry) = gun_weapon_ids.write().get_mut(idx) {
-                                                        *entry = new_slug;
-                                                    }
-                                                }
-                                            },
-                                            option { value: "", "-- Select Weapon --" }
-                                            optgroup { label: "Colonial",
-                                                for w in &colonial {
-                                                    option {
-                                                        value: "{w.slug}",
-                                                        selected: current_slug == w.slug,
-                                                        "{w.display_name} ({w.min_range}-{w.max_range}m)"
-                                                    }
-                                                }
-                                            }
-                                            optgroup { label: "Warden",
-                                                for w in &warden {
-                                                    option {
-                                                        value: "{w.slug}",
-                                                        selected: current_slug == w.slug,
-                                                        "{w.display_name} ({w.min_range}-{w.max_range}m)"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                for (i, t) in target_positions.iter().enumerate() {
-                    {
-                        let is_selected = cur_selected == Some(SelectedMarker { kind: MarkerKind::Target, index: i });
-                        let cls = if is_selected { "marker-item selected" } else { "marker-item" };
-                        rsx! {
-                            div {
-                                class: "{cls}",
-                                onclick: {
-                                    let sel = if is_selected { None } else { Some(SelectedMarker { kind: MarkerKind::Target, index: i }) };
-                                    move |_| selected_marker.set(sel)
-                                },
-                                p { class: "coord-info",
-                                    if target_positions.len() > 1 {
-                                        "Target {i + 1}: {coords::format_px_as_grid(t.0, t.1)}"
-                                    } else {
-                                        "Target: {coords::format_px_as_grid(t.0, t.1)}"
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                for (i, s) in spotter_positions.iter().enumerate() {
-                    {
-                        let is_selected = cur_selected == Some(SelectedMarker { kind: MarkerKind::Spotter, index: i });
-                        let cls = if is_selected { "marker-item selected" } else { "marker-item" };
-                        rsx! {
-                            div {
-                                class: "{cls}",
-                                onclick: {
-                                    let sel = if is_selected { None } else { Some(SelectedMarker { kind: MarkerKind::Spotter, index: i }) };
-                                    move |_| selected_marker.set(sel)
-                                },
-                                p { class: "coord-info",
-                                    if spotter_positions.len() > 1 {
-                                        "Spotter {i + 1}: {coords::format_px_as_grid(s.0, s.1)}"
-                                    } else {
-                                        "Spotter: {coords::format_px_as_grid(s.0, s.1)}"
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                if gun_positions.is_empty() || target_positions.is_empty() {
-                    p { style: "color: var(--text-dim); font-size: 13px;",
-                        "Place gun and target to calculate."
-                    }
-                } else {
-                    p { style: "color: var(--text-dim); font-size: 13px;",
-                        "Select a weapon to see firing solution."
-                    }
+                p { style: "color: var(--text-dim); font-size: 13px;",
+                    "Place gun and target to calculate."
                 }
             }
         };
@@ -151,26 +45,29 @@ pub fn CalculationDisplay(
         div { class: "panel",
             h3 { "Firing Solution" }
 
-            for pair_idx in 0..num_pairs {
+            // Each gun with its assigned target and firing solution
+            for (gun_idx, g) in gun_positions.iter().enumerate() {
                 {
-                    let sol = solutions.get(pair_idx).and_then(|s| s.as_ref());
-                    let gun = gun_positions.get(pair_idx);
-                    let target = target_positions.get(pair_idx);
+                    let sol = solutions.get(gun_idx).and_then(|s| s.as_ref());
+                    let target_idx = pairings.get(gun_idx).and_then(|o| *o);
+                    let target = target_idx.and_then(|ti| target_positions.get(ti));
 
-                    let weapon_name = wids.get(pair_idx)
+                    let weapon_name = wids.get(gun_idx)
                         .and_then(|slug| weapons.iter().find(|w| w.slug == *slug))
                         .map(|w| w.display_name.clone());
 
-                    let gun_selected = cur_selected == Some(SelectedMarker { kind: MarkerKind::Gun, index: pair_idx });
-                    let tgt_selected = cur_selected == Some(SelectedMarker { kind: MarkerKind::Target, index: pair_idx });
+                    let gun_selected = cur_selected == Some(SelectedMarker { kind: MarkerKind::Gun, index: gun_idx });
+                    let paired_tgt_selected = target_idx
+                        .map(|ti| cur_selected == Some(SelectedMarker { kind: MarkerKind::Target, index: ti }))
+                        .unwrap_or(false);
 
                     rsx! {
-                        if multiple_pairs {
+                        if multiple_guns {
                             h4 { style: "margin: 8px 0 4px; color: var(--text-dim);",
                                 if let Some(ref wn) = weapon_name {
-                                    "Pair {pair_idx + 1} — {wn}"
+                                    "Gun {gun_idx + 1} — {wn}"
                                 } else {
-                                    "Pair {pair_idx + 1}"
+                                    "Gun {gun_idx + 1}"
                                 }
                             }
                         } else if let Some(ref wn) = weapon_name {
@@ -181,22 +78,20 @@ pub fn CalculationDisplay(
 
                         // Grid coordinates — clickable
                         div { class: "coord-row",
-                            if let Some(g) = gun {
-                                {
-                                    let cls = if gun_selected { "marker-item selected" } else { "marker-item" };
-                                    rsx! {
-                                        div {
-                                            class: "{cls}",
-                                            onclick: {
-                                                let sel = if gun_selected { None } else { Some(SelectedMarker { kind: MarkerKind::Gun, index: pair_idx }) };
-                                                move |_| selected_marker.set(sel)
-                                            },
-                                            span { class: "coord-info gun-coord",
-                                                if multiple_pairs {
-                                                    "Gun {pair_idx + 1}: {coords::format_px_as_grid(g.0, g.1)}"
-                                                } else {
-                                                    "Gun: {coords::format_px_as_grid(g.0, g.1)}"
-                                                }
+                            {
+                                let cls = if gun_selected { "marker-item selected" } else { "marker-item" };
+                                rsx! {
+                                    div {
+                                        class: "{cls}",
+                                        onclick: {
+                                            let sel = if gun_selected { None } else { Some(SelectedMarker { kind: MarkerKind::Gun, index: gun_idx }) };
+                                            move |_| selected_marker.set(sel)
+                                        },
+                                        span { class: "coord-info gun-coord",
+                                            if multiple_guns {
+                                                "Gun {gun_idx + 1}: {coords::format_px_as_grid(g.0, g.1)}"
+                                            } else {
+                                                "Gun: {coords::format_px_as_grid(g.0, g.1)}"
                                             }
                                         }
                                     }
@@ -204,17 +99,18 @@ pub fn CalculationDisplay(
                             }
                             if let Some(t) = target {
                                 {
-                                    let cls = if tgt_selected { "marker-item selected" } else { "marker-item" };
+                                    let ti = target_idx.unwrap();
+                                    let cls = if paired_tgt_selected { "marker-item selected" } else { "marker-item" };
                                     rsx! {
                                         div {
                                             class: "{cls}",
                                             onclick: {
-                                                let sel = if tgt_selected { None } else { Some(SelectedMarker { kind: MarkerKind::Target, index: pair_idx }) };
+                                                let sel = if paired_tgt_selected { None } else { Some(SelectedMarker { kind: MarkerKind::Target, index: ti }) };
                                                 move |_| selected_marker.set(sel)
                                             },
                                             span { class: "coord-info target-coord",
-                                                if multiple_pairs {
-                                                    "Tgt {pair_idx + 1}: {coords::format_px_as_grid(t.0, t.1)}"
+                                                if target_positions.len() > 1 {
+                                                    "Tgt {ti + 1}: {coords::format_px_as_grid(t.0, t.1)}"
                                                 } else {
                                                     "Tgt: {coords::format_px_as_grid(t.0, t.1)}"
                                                 }
@@ -222,19 +118,28 @@ pub fn CalculationDisplay(
                                         }
                                     }
                                 }
+                            } else {
+                                span { class: "coord-info", style: "color: var(--text-dim); font-style: italic;",
+                                    "(no target)"
+                                }
                             }
                         }
 
-                        // Inline weapon selector for selected gun
+                        // Inline selectors when gun is selected
                         if gun_selected {
                             {
-                                let current_slug = wids.get(pair_idx).cloned().unwrap_or_default();
+                                let current_slug = wids.get(gun_idx).cloned().unwrap_or_default();
+                                let current_target_val = match pairings.get(gun_idx).and_then(|o| *o) {
+                                    Some(ti) => format!("{}", ti),
+                                    None => String::new(),
+                                };
                                 rsx! {
+                                    // Weapon selector
                                     select {
                                         class: "inline-weapon-select",
                                         value: "{current_slug}",
                                         onchange: {
-                                            let idx = pair_idx;
+                                            let idx = gun_idx;
                                             move |evt: Event<FormData>| {
                                                 let new_slug = evt.value().to_string();
                                                 if let Some(entry) = gun_weapon_ids.write().get_mut(idx) {
@@ -262,10 +167,42 @@ pub fn CalculationDisplay(
                                             }
                                         }
                                     }
+                                    // Target selector
+                                    select {
+                                        class: "inline-weapon-select",
+                                        value: "{current_target_val}",
+                                        onchange: {
+                                            let idx = gun_idx;
+                                            move |evt: Event<FormData>| {
+                                                let val = evt.value().to_string();
+                                                let new_target = if val.is_empty() {
+                                                    None
+                                                } else {
+                                                    val.parse::<usize>().ok()
+                                                };
+                                                if let Some(entry) = gun_target_indices.write().get_mut(idx) {
+                                                    *entry = new_target;
+                                                }
+                                            }
+                                        },
+                                        option { value: "", "-- No Target --" }
+                                        for (ti, tp) in target_positions.iter().enumerate() {
+                                            option {
+                                                value: "{ti}",
+                                                selected: current_target_val == format!("{}", ti),
+                                                if target_positions.len() > 1 {
+                                                    "Target {ti + 1}: {coords::format_px_as_grid(tp.0, tp.1)}"
+                                                } else {
+                                                    "Target: {coords::format_px_as_grid(tp.0, tp.1)}"
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
 
+                        // Firing solution
                         if let Some(sol) = sol {
                             {
                                 let range_class = if sol.in_range { "value in-range" } else { "value out-of-range" };
@@ -324,58 +261,24 @@ pub fn CalculationDisplay(
                 }
             }
 
-            // Unpaired guns (extra guns beyond targets)
-            for i in num_pairs..gun_positions.len() {
-                {
-                    let g = &gun_positions[i];
-                    let is_selected = cur_selected == Some(SelectedMarker { kind: MarkerKind::Gun, index: i });
-                    let cls = if is_selected { "marker-item selected" } else { "marker-item" };
-                    rsx! {
-                        div {
-                            class: "{cls}",
-                            onclick: {
-                                let sel = if is_selected { None } else { Some(SelectedMarker { kind: MarkerKind::Gun, index: i }) };
-                                move |_| selected_marker.set(sel)
-                            },
-                            p { class: "coord-info",
-                                "Gun {i + 1}: {coords::format_px_as_grid(g.0, g.1)} (unpaired)"
-                            }
-                        }
-                        if is_selected {
-                            {
-                                let current_slug = wids.get(i).cloned().unwrap_or_default();
-                                rsx! {
-                                    select {
-                                        class: "inline-weapon-select",
-                                        value: "{current_slug}",
-                                        onchange: {
-                                            let idx = i;
-                                            move |evt: Event<FormData>| {
-                                                let new_slug = evt.value().to_string();
-                                                if let Some(entry) = gun_weapon_ids.write().get_mut(idx) {
-                                                    *entry = new_slug;
-                                                }
-                                            }
-                                        },
-                                        option { value: "", "-- Select Weapon --" }
-                                        optgroup { label: "Colonial",
-                                            for w in &colonial {
-                                                option {
-                                                    value: "{w.slug}",
-                                                    selected: current_slug == w.slug,
-                                                    "{w.display_name} ({w.min_range}-{w.max_range}m)"
-                                                }
-                                            }
-                                        }
-                                        optgroup { label: "Warden",
-                                            for w in &warden {
-                                                option {
-                                                    value: "{w.slug}",
-                                                    selected: current_slug == w.slug,
-                                                    "{w.display_name} ({w.min_range}-{w.max_range}m)"
-                                                }
-                                            }
-                                        }
+            // Unassigned targets (not paired with any gun)
+            for (ti, t) in target_positions.iter().enumerate() {
+                if !assigned_targets.get(ti).copied().unwrap_or(false) {
+                    {
+                        let is_selected = cur_selected == Some(SelectedMarker { kind: MarkerKind::Target, index: ti });
+                        let cls = if is_selected { "marker-item selected" } else { "marker-item" };
+                        rsx! {
+                            div {
+                                class: "{cls}",
+                                onclick: {
+                                    let sel = if is_selected { None } else { Some(SelectedMarker { kind: MarkerKind::Target, index: ti }) };
+                                    move |_| selected_marker.set(sel)
+                                },
+                                p { class: "coord-info",
+                                    if target_positions.len() > 1 {
+                                        "Target {ti + 1}: {coords::format_px_as_grid(t.0, t.1)} (unassigned)"
+                                    } else {
+                                        "Target: {coords::format_px_as_grid(t.0, t.1)} (unassigned)"
                                     }
                                 }
                             }
@@ -383,26 +286,7 @@ pub fn CalculationDisplay(
                     }
                 }
             }
-            // Unpaired targets (extra targets beyond guns)
-            for i in num_pairs..target_positions.len() {
-                {
-                    let t = &target_positions[i];
-                    let is_selected = cur_selected == Some(SelectedMarker { kind: MarkerKind::Target, index: i });
-                    let cls = if is_selected { "marker-item selected" } else { "marker-item" };
-                    rsx! {
-                        div {
-                            class: "{cls}",
-                            onclick: {
-                                let sel = if is_selected { None } else { Some(SelectedMarker { kind: MarkerKind::Target, index: i }) };
-                                move |_| selected_marker.set(sel)
-                            },
-                            p { class: "coord-info",
-                                "Target {i + 1}: {coords::format_px_as_grid(t.0, t.1)} (unpaired)"
-                            }
-                        }
-                    }
-                }
-            }
+
             // Spotters (informational) — clickable
             for (i, s) in spotter_positions.iter().enumerate() {
                 {
@@ -424,6 +308,13 @@ pub fn CalculationDisplay(
                             }
                         }
                     }
+                }
+            }
+
+            // Prompt when nothing placed yet
+            if gun_positions.is_empty() && target_positions.is_empty() {
+                p { style: "color: var(--text-dim); font-size: 13px;",
+                    "Place gun and target to calculate."
                 }
             }
         }

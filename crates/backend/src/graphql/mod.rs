@@ -84,6 +84,7 @@ pub struct GqlPlan {
     pub gun_positions: Vec<GqlPosition>,
     pub target_positions: Vec<GqlPosition>,
     pub spotter_positions: Vec<GqlPosition>,
+    pub gun_target_indices: Vec<Option<i32>>,
     pub wind_direction: Option<f64>,
     pub wind_strength: u32,
     pub created_at: String,
@@ -100,6 +101,7 @@ impl From<models::Plan> for GqlPlan {
             gun_positions: p.gun_positions.into_iter().map(|pos| GqlPosition { x: pos.x, y: pos.y }).collect(),
             target_positions: p.target_positions.into_iter().map(|pos| GqlPosition { x: pos.x, y: pos.y }).collect(),
             spotter_positions: p.spotter_positions.into_iter().map(|pos| GqlPosition { x: pos.x, y: pos.y }).collect(),
+            gun_target_indices: p.gun_target_indices.into_iter().map(|o| o.map(|v| v as i32)).collect(),
             wind_direction: p.wind_direction,
             wind_strength: p.wind_strength as u32,
             created_at: p.created_at,
@@ -144,6 +146,7 @@ pub struct CreatePlanInput {
     pub gun_positions: Option<Vec<PositionInput>>,
     pub target_positions: Option<Vec<PositionInput>>,
     pub spotter_positions: Option<Vec<PositionInput>>,
+    pub gun_target_indices: Option<Vec<Option<i32>>>,
     pub wind_direction: Option<f64>,
     pub wind_strength: Option<u32>,
 }
@@ -157,6 +160,7 @@ pub struct UpdatePlanInput {
     pub gun_positions: Option<Vec<PositionInput>>,
     pub target_positions: Option<Vec<PositionInput>>,
     pub spotter_positions: Option<Vec<PositionInput>>,
+    pub gun_target_indices: Option<Vec<Option<i32>>>,
     pub wind_direction: Option<f64>,
     pub wind_strength: Option<u32>,
 }
@@ -309,6 +313,8 @@ impl MutationRoot {
             gun_positions: to_positions(input.gun_positions),
             target_positions: to_positions(input.target_positions),
             spotter_positions: to_positions(input.spotter_positions),
+            gun_target_indices: input.gun_target_indices.unwrap_or_default()
+                .into_iter().map(|o| o.map(|v| v as u32)).collect(),
             wind_direction: input.wind_direction,
             wind_strength: input.wind_strength.unwrap_or(0) as u8,
             created_at: now.clone(),
@@ -351,6 +357,9 @@ impl MutationRoot {
         }
         if let Some(positions) = input.spotter_positions {
             plan.spotter_positions = positions.into_iter().map(|p| Position { x: p.x, y: p.y }).collect();
+        }
+        if let Some(indices) = input.gun_target_indices {
+            plan.gun_target_indices = indices.into_iter().map(|o| o.map(|v| v as u32)).collect();
         }
         if let Some(dir) = input.wind_direction {
             plan.wind_direction = Some(dir);
