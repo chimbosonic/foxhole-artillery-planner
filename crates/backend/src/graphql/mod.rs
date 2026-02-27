@@ -108,6 +108,11 @@ impl From<models::Plan> for GqlPlan {
     }
 }
 
+#[derive(SimpleObject)]
+pub struct GqlStats {
+    pub total_plans: u64,
+}
+
 // Input types
 
 #[derive(InputObject)]
@@ -260,6 +265,14 @@ impl QueryRoot {
             .get_plan(&id)
             .map_err(async_graphql::Error::new)?;
         Ok(plan.map(GqlPlan::from))
+    }
+
+    async fn stats(&self, ctx: &Context<'_>) -> async_graphql::Result<GqlStats> {
+        let storage = ctx.data::<Arc<Storage>>().unwrap();
+        let total_plans = storage
+            .count_plans()
+            .map_err(async_graphql::Error::new)?;
+        Ok(GqlStats { total_plans })
     }
 }
 

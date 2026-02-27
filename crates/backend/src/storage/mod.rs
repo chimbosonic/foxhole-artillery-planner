@@ -1,5 +1,5 @@
 use foxhole_shared::models::Plan;
-use redb::{Database, TableDefinition};
+use redb::{Database, ReadableTableMetadata, TableDefinition};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -52,6 +52,12 @@ impl Storage {
             }
             None => Ok(None),
         }
+    }
+
+    pub fn count_plans(&self) -> Result<u64, String> {
+        let read_txn = self.db.begin_read().map_err(|e| e.to_string())?;
+        let table = read_txn.open_table(PLANS_TABLE).map_err(|e| e.to_string())?;
+        table.len().map_err(|e| e.to_string())
     }
 
     pub fn delete_plan(&self, id: &str) -> Result<bool, String> {
