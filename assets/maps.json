@@ -1,272 +1,332 @@
 [
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Acrithia",
     "fileName": "acrithia",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Allod's Bight",
     "fileName": "allods_bight",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Ash Fields",
     "fileName": "ash_fields",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Basin Sionnach",
     "fileName": "basin_sionnach",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Callahan's Passage",
     "fileName": "callahans_passage",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Callum's Cape",
     "fileName": "callums_cape",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Clanshead Valley",
     "fileName": "clanshead_valley",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Deadlands",
     "fileName": "deadlands",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Endless Shore",
     "fileName": "endless_shore",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Farranac Coast",
     "fileName": "farranac_coast",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Fisherman's Row",
     "fileName": "fishermans_row",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Godcrofts",
     "fileName": "godcrofts",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Great March",
     "fileName": "great_march",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Howl County",
     "fileName": "howl_county",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Kalokai",
     "fileName": "kalokai",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "King's Cage",
-    "fileName": "MapKingsCageHex",
+    "fileName": "kings_cage",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Loch Mor",
     "fileName": "loch_mor",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Marban Hollow",
     "fileName": "marban_hollow",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Morgen's Crossing",
     "fileName": "morgens_crossing",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Nevish Line",
     "fileName": "nevish_line",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Origin",
     "fileName": "origin",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Reaching Trail",
     "fileName": "reaching_trail",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Reaver's Pass",
-    "fileName": "MapReaversPassHex",
+    "fileName": "reavers_pass",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Red River",
     "fileName": "red_river",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Sableport",
-    "fileName": "MapSableportHex",
+    "fileName": "sableport",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Shackled Chasm",
     "fileName": "shackled_chasm",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Speaking Woods",
     "fileName": "speaking_woods",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Stema Landing",
-    "fileName": "MapStemaLandingHex",
+    "fileName": "stema_landing",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Stlican Shelf",
-    "fileName": "MapStlicanShelfHex",
+    "fileName": "stlican_shelf",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Stonecradle",
     "fileName": "stonecradle",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Tempest Island",
     "fileName": "tempest_island",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Terminus",
     "fileName": "terminus",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "The Clahstra",
-    "fileName": "MapClahstraHexMap",
+    "fileName": "clahstra",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "The Drowned Vale",
     "fileName": "the_drowned_vale",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "The Fingers",
     "fileName": "the_fingers",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "The Heartlands",
     "fileName": "the_heartlands",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "The Linn of Mercy",
     "fileName": "the_linn_of_mercy",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "The Moors",
     "fileName": "the_moors",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "The Oarbreaker Isles",
     "fileName": "the_oarbreaker_isles",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Umbral Wildwood",
     "fileName": "umbral_wildwood",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Viper Pit",
     "fileName": "viper_pit",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Weathered Expanse",
     "fileName": "weathered_expanse",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Westgate",
     "fileName": "westgate",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Colonial Home Region",
     "fileName": "colonial_home_region",
     "active": true
   },
   {
-    "type": "png",
+    "type": "webp",
     "displayName": "Warden Home Region",
     "fileName": "warden_home_region",
+    "active": true
+  },
+  {
+    "type": "webp",
+    "displayName": "Gutter",
+    "fileName": "gutter",
+    "active": true
+  },
+  {
+    "type": "webp",
+    "displayName": "Kuura Strand",
+    "fileName": "kuura_strand",
+    "active": true
+  },
+  {
+    "type": "webp",
+    "displayName": "Lykos Isle",
+    "fileName": "lykos_isle",
+    "active": true
+  },
+  {
+    "type": "webp",
+    "displayName": "Olavis Wake",
+    "fileName": "olavis_wake",
+    "active": true
+  },
+  {
+    "type": "webp",
+    "displayName": "Onyx",
+    "fileName": "onyx",
+    "active": true
+  },
+  {
+    "type": "webp",
+    "displayName": "Palantine Berm",
+    "fileName": "palantine_berm",
+    "active": true
+  },
+  {
+    "type": "webp",
+    "displayName": "Pari Peak",
+    "fileName": "pari_peak",
+    "active": true
+  },
+  {
+    "type": "webp",
+    "displayName": "Piper's Enclave",
+    "fileName": "pipers_enclave",
+    "active": true
+  },
+  {
+    "type": "webp",
+    "displayName": "Tyrant Foothills",
+    "fileName": "tyrant_foothills",
+    "active": true
+  },
+  {
+    "type": "webp",
+    "displayName": "Wresta",
+    "fileName": "wresta",
     "active": true
   }
 ]
