@@ -170,6 +170,69 @@ test.describe("Foxhole Artillery Planner", () => {
     expect(gunText).toMatch(/GUN: [A-Q]\d+k\d/);
   });
 
+  test("mousedown+mouseup places gun marker (no onclick)", async ({
+    page,
+  }) => {
+    // This test exercises the exact event path used by our zoom/pan code:
+    // onmousedown → onmouseup (no drag) → place marker.
+    // The old onclick handler was removed in favour of this flow.
+    await page
+      .locator(".placement-mode button", { hasText: "Gun" })
+      .click();
+
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+
+    const cx = box!.x + box!.width / 2;
+    const cy = box!.y + box!.height / 2;
+
+    // Explicit mousedown → mouseup with NO intervening mousemove
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.up();
+
+    // Gun marker should appear
+    const gunMarker = page.locator('.map-container svg text:text("GUN")');
+    await expect(gunMarker).toBeVisible({ timeout: 5000 });
+
+    // Coordinate readout should reflect the placement
+    const gunTag = page.locator(".coord-tag.gun-tag");
+    await expect(gunTag).toBeVisible();
+    const text = await gunTag.textContent();
+    expect(text).toMatch(/GUN: [A-Q]\d+k\d/);
+  });
+
+  test("marker y-coordinate matches click position (offset regression)", async ({
+    page,
+  }) => {
+    // The image renders with width:100% + height:auto inside .map-inner.
+    // The coordinate conversion must use the IMAGE dimensions (derived from
+    // the aspect ratio), not the .map-container height (which is determined
+    // by the CSS grid and may be taller or shorter than the image).
+    await page
+      .locator(".placement-mode button", { hasText: "Gun" })
+      .click();
+
+    // Use the image bounding box — it reflects the actual rendered map area
+    const img = page.locator(".map-inner img");
+    await expect(img).toBeVisible();
+    const imgBox = await img.boundingBox();
+    expect(imgBox).not.toBeNull();
+
+    // Click at 25% down the image, horizontally centered.
+    // 50% across 17 columns → column I (index 8)
+    // 25% down  15 rows    → row 4    (index 3)
+    const cx = imgBox!.x + imgBox!.width * 0.5;
+    const cy = imgBox!.y + imgBox!.height * 0.25;
+    await page.mouse.click(cx, cy);
+
+    const gunTag = page.locator(".coord-tag.gun-tag");
+    await expect(gunTag).toBeVisible();
+    const text = await gunTag.textContent();
+    expect(text).toContain("GUN: I4");
+  });
+
   test("click on map places target marker", async ({ page }) => {
     // Switch to Target mode
     const targetButton = page.locator(".placement-mode button", {
