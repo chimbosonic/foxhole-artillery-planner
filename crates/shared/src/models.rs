@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "uuid-support")]
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -59,6 +61,7 @@ pub struct Position {
     pub y: f64,
 }
 
+#[cfg(feature = "uuid-support")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Plan {
     pub id: Uuid,

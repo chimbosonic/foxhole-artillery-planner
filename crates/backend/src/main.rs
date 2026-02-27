@@ -40,7 +40,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/graphql", get(graphiql).post(graphql_handler))
-        .nest_service("/assets", ServeDir::new("assets"))
+        .nest_service("/static", ServeDir::new("assets"))
         .nest_service("/dist", ServeDir::new("dist"))
         .route("/", get(serve_index))
         .route("/plan/{id}", get(serve_index))

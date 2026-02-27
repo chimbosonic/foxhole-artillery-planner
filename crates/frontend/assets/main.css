@@ -24,6 +24,8 @@ body {
     height: 100vh;
 }
 
+/* --- Layout --- */
+
 .app {
     display: grid;
     grid-template-columns: 320px 1fr;
@@ -71,57 +73,185 @@ body {
     margin-bottom: 8px;
 }
 
+/* --- Map container --- */
+
 .map-container {
     position: relative;
     overflow: hidden;
     cursor: crosshair;
     background: #000;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .map-container img {
     display: block;
     width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-
-.marker {
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    border: 2px solid white;
-    transform: translate(-50%, -50%);
+    height: auto;
     pointer-events: none;
-    z-index: 10;
+    -webkit-user-drag: none;
 }
 
-.marker.gun {
-    background: var(--accent-green);
-    box-shadow: 0 0 8px var(--accent-green);
-}
-
-.marker.target {
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent);
-}
-
-.marker.spotter {
-    background: var(--accent-blue);
-    box-shadow: 0 0 8px var(--accent-blue);
-}
-
-.marker-label {
+.svg-overlay {
     position: absolute;
-    font-size: 10px;
-    font-weight: 700;
-    white-space: nowrap;
-    top: -18px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: white;
-    text-shadow: 0 0 4px black;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 5;
 }
+
+/* --- Grid lines --- */
+
+.grid-line {
+    stroke: rgba(255, 255, 255, 0.15);
+    stroke-width: 0.5;
+}
+
+.grid-label {
+    fill: rgba(255, 255, 255, 0.45);
+    font-size: 9px;
+    font-family: 'Segoe UI', system-ui, monospace;
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: central;
+}
+
+/* --- Range circles --- */
+
+.range-circle-max {
+    fill: rgba(78, 204, 163, 0.06);
+    stroke: var(--accent-green);
+    stroke-width: 1.5;
+    stroke-opacity: 0.6;
+}
+
+.range-circle-min {
+    fill: rgba(233, 69, 96, 0.06);
+    stroke: var(--accent);
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+    stroke-opacity: 0.5;
+}
+
+/* --- Firing line --- */
+
+.firing-line {
+    stroke: rgba(233, 69, 96, 0.7);
+    stroke-width: 1.5;
+    stroke-dasharray: 6 4;
+}
+
+/* --- Accuracy circle --- */
+
+.accuracy-circle {
+    fill: rgba(233, 69, 96, 0.15);
+    stroke: var(--accent);
+    stroke-width: 1;
+    stroke-dasharray: 3 2;
+}
+
+/* --- SVG markers --- */
+
+.marker-svg {
+    stroke: white;
+    stroke-width: 1.5;
+}
+
+.gun-marker {
+    fill: var(--accent-green);
+    filter: drop-shadow(0 0 4px rgba(78, 204, 163, 0.8));
+}
+
+.target-marker {
+    fill: var(--accent);
+    filter: drop-shadow(0 0 4px rgba(233, 69, 96, 0.8));
+}
+
+.spotter-marker {
+    fill: var(--accent-blue);
+    filter: drop-shadow(0 0 4px rgba(126, 200, 227, 0.8));
+}
+
+.crosshair {
+    stroke: var(--accent);
+    stroke-width: 1.5;
+}
+
+.marker-label-svg {
+    fill: white;
+    font-size: 8px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-weight: 700;
+    text-anchor: middle;
+    text-shadow: 0 0 3px black;
+    paint-order: stroke;
+    stroke: rgba(0, 0, 0, 0.7);
+    stroke-width: 2px;
+}
+
+.target-label {
+    fill: #ffcccc;
+}
+
+.spotter-label {
+    fill: #cce7ff;
+}
+
+/* --- Coordinate readout (bottom-left of map) --- */
+
+.coord-readout {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    z-index: 15;
+    display: flex;
+    gap: 8px;
+}
+
+.coord-tag {
+    background: rgba(0, 0, 0, 0.75);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: monospace;
+}
+
+.gun-tag {
+    color: var(--accent-green);
+    border: 1px solid var(--accent-green);
+}
+
+.target-tag {
+    color: var(--accent);
+    border: 1px solid var(--accent);
+}
+
+/* --- Sidebar coordinate display --- */
+
+.coord-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.coord-info {
+    font-size: 12px;
+    font-family: monospace;
+    font-weight: 600;
+}
+
+.gun-coord {
+    color: var(--accent-green);
+}
+
+.target-coord {
+    color: var(--accent);
+}
+
+/* --- Form elements --- */
 
 select, input[type="text"], input[type="number"] {
     width: 100%;
@@ -155,6 +285,8 @@ button:hover {
 button.secondary {
     background: var(--bg-input);
 }
+
+/* --- Wind input --- */
 
 .wind-grid {
     display: grid;
@@ -206,6 +338,8 @@ button.secondary {
     text-align: center;
 }
 
+/* --- Firing solution display --- */
+
 .solution {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -252,6 +386,8 @@ button.secondary {
     margin-bottom: 6px;
 }
 
+/* --- Plan panel --- */
+
 .plan-url {
     display: flex;
     gap: 6px;
@@ -262,6 +398,8 @@ button.secondary {
     flex: 1;
     font-size: 11px;
 }
+
+/* --- Placement mode buttons --- */
 
 .placement-mode {
     display: flex;
@@ -286,15 +424,7 @@ button.secondary {
     background: var(--accent-blue);
 }
 
-.svg-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 5;
-}
+/* --- Loading state --- */
 
 .loading {
     display: flex;

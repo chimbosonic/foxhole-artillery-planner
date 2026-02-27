@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-dioxus = { version = "0.6", features = ["web", "router"] }
+foxhole-shared = { path = "../shared", default-features = false }
+dioxus = { version = "0.7", features = ["web", "router"] }
 reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-web-sys = { version = "0.3", features = ["Window", "Navigator", "Clipboard"] }
+web-sys = { version = "0.3", features = ["Window", "Navigator", "Clipboard", "Document", "Element", "DomRect", "HtmlElement"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 gloo-timers = { version = "0.3", features = ["futures"] }

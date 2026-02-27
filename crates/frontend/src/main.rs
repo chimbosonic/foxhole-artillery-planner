@@ -1,5 +1,6 @@
 mod api;
 mod components;
+mod coords;
 mod pages;
 
 use dioxus::prelude::*;
@@ -26,8 +27,11 @@ fn PlanView(id: String) -> Element {
     }
 }
 
+const CSS: Asset = asset!("/assets/main.css");
+
 fn App() -> Element {
     rsx! {
+        document::Stylesheet { href: CSS }
         Router::<Route> {}
     }
 }
