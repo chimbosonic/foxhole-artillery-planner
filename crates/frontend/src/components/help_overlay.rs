@@ -94,7 +94,7 @@ pub fn HelpOverlay(show: Signal<bool>) -> Element {
 
                 div { class: "help-info-section",
                     h3 { "Wind Compensation" }
-                    p { "Wind pushes shells in the direction it blows toward (opposite of the \"from\" direction). Each wind strength level adds 8m of lateral drift. The planner compensates by adjusting the aim point: it shifts the target position against the wind and recalculates azimuth and distance to that corrected point." }
+                    p { "Wind pushes shells in the direction it blows toward (opposite of the \u{201c}from\u{201d} direction). Wind drift varies per weapon and increases with range \u{2014} it interpolates linearly from the weapon\u{2019}s minimum drift at close range to maximum drift at max range, then scales by wind strength (0\u{2013}5, divided by 5). The planner compensates by shifting the aim point against the wind and recalculating azimuth and distance to that corrected point." }
                 }
 
                 div { class: "help-info-section",

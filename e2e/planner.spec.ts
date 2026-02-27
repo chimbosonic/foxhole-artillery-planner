@@ -72,9 +72,9 @@ test.describe("Foxhole Artillery Planner", () => {
     const svgOverlay = mapContainer.locator("svg");
     await expect(svgOverlay).toBeVisible();
 
-    // SVG should have correct viewBox matching map dimensions (1024x888)
+    // SVG should have correct viewBox matching map dimensions (2048x1776)
     const viewBox = await svgOverlay.getAttribute("viewBox");
-    expect(viewBox).toBe("0 0 1024 888");
+    expect(viewBox).toBe("0 0 2048 1776");
   });
 
   test("grid lines render in SVG", async ({ page }) => {

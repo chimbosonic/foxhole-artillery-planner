@@ -3,14 +3,14 @@
 /// Each hex region is 2184m wide x 1890m tall.
 /// Grid: 17 columns (A-Q) x 15 rows (1-15).
 /// Each grid cell has a 3x3 keypad sub-grid (k1-k9).
-/// Map images are 1024x888 pixels.
+/// Map images are 2048x1776 pixels.
 // World dimensions in meters
 pub const MAP_WIDTH_M: f64 = 2184.0;
 pub const MAP_HEIGHT_M: f64 = 1890.0;
 
 // Map image dimensions in pixels
-pub const MAP_WIDTH_PX: f64 = 1024.0;
-pub const MAP_HEIGHT_PX: f64 = 888.0;
+pub const MAP_WIDTH_PX: f64 = 2048.0;
+pub const MAP_HEIGHT_PX: f64 = 1776.0;
 
 // Grid dimensions
 pub const GRID_COLS: usize = 17; // A through Q
@@ -192,6 +192,6 @@ mod tests {
     fn test_meters_to_px_distance() {
         // 100m should convert to a reasonable pixel distance
         let px = meters_to_px_distance(100.0);
-        assert!(px > 40.0 && px < 60.0); // roughly 47 pixels
+        assert!(px > 85.0 && px < 105.0); // roughly 94 pixels
     }
 }

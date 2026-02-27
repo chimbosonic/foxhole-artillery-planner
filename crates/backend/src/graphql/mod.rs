@@ -56,6 +56,8 @@ pub struct GqlWeapon {
     pub max_range: f64,
     pub acc_radius_min: f64,
     pub acc_radius_max: f64,
+    pub wind_drift_min: f64,
+    pub wind_drift_max: f64,
 }
 
 #[derive(SimpleObject)]
@@ -220,6 +222,8 @@ impl QueryRoot {
                 max_range: w.max_range,
                 acc_radius_min: w.acc_radius[0],
                 acc_radius_max: w.acc_radius[1],
+                wind_drift_min: w.wind_drift[0],
+                wind_drift_max: w.wind_drift[1],
             })
             .collect()
     }

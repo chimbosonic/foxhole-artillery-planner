@@ -112,15 +112,15 @@ mod tests {
 
     #[test]
     fn test_format_px_as_grid_center() {
-        let coord = format_px_as_grid(512.0, 444.0);
+        let coord = format_px_as_grid(1024.0, 888.0);
         assert!(coord.starts_with('I'));
     }
 
     #[test]
     fn test_meters_to_image_px_sanity() {
         let px = meters_to_image_px(100.0);
-        // ~47 pixels for 100m
-        assert!(px > 40.0 && px < 60.0);
+        // ~94 pixels for 100m
+        assert!(px > 85.0 && px < 105.0);
     }
 
     #[test]
@@ -129,18 +129,18 @@ mod tests {
         let container_w = 800.0;
         let result = client_to_map_px_zoomed(400.0, 346.875, container_w, 1.0, 0.0, 0.0);
         let (x, y) = result.unwrap();
-        assert!((x - 512.0).abs() < 1.0);
-        assert!((y - 444.0).abs() < 1.0);
+        assert!((x - 1024.0).abs() < 1.0);
+        assert!((y - 888.0).abs() < 1.0);
     }
 
     #[test]
     fn test_client_to_map_px_zoomed_with_zoom() {
-        // At zoom=2 with pan=0, clicking at (400, 347) should map to (256, 222) in image space
+        // At zoom=2 with pan=0, clicking at (400, 347) should map to (512, 444) in image space
         let container_w = 800.0;
         let result = client_to_map_px_zoomed(400.0, 346.875, container_w, 2.0, 0.0, 0.0);
         let (x, y) = result.unwrap();
-        assert!((x - 256.0).abs() < 1.0);
-        assert!((y - 222.0).abs() < 1.0);
+        assert!((x - 512.0).abs() < 1.0);
+        assert!((y - 444.0).abs() < 1.0);
     }
 
     #[test]
@@ -149,8 +149,8 @@ mod tests {
         let container_w = 800.0;
         let result = client_to_map_px_zoomed(500.0, 396.875, container_w, 1.0, 100.0, 50.0);
         let (x, y) = result.unwrap();
-        assert!((x - 512.0).abs() < 1.0);
-        assert!((y - 444.0).abs() < 1.0);
+        assert!((x - 1024.0).abs() < 1.0);
+        assert!((y - 888.0).abs() < 1.0);
     }
 
     #[test]
@@ -178,7 +178,7 @@ mod tests {
         // Click at (400, 346.875) — center of the image
         let result = client_to_map_px_zoomed(400.0, 346.875, container_w, 1.0, 0.0, 0.0);
         let (x, y) = result.unwrap();
-        assert!((x - 512.0).abs() < 1.0);
-        assert!((y - 444.0).abs() < 1.0);
+        assert!((x - 1024.0).abs() < 1.0);
+        assert!((y - 888.0).abs() < 1.0);
     }
 }

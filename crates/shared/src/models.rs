@@ -28,6 +28,7 @@ pub struct Weapon {
     pub min_range: f64,
     pub max_range: f64,
     pub acc_radius: [f64; 2],
+    pub wind_drift: [f64; 2],
 }
 
 impl Weapon {
@@ -178,6 +179,7 @@ mod tests {
             min_range: 400.0,
             max_range: 1000.0,
             acc_radius: [50.0, 50.0],
+            wind_drift: [20.0, 50.0],
         };
         assert_eq!(weapon.slug(), "storm-cannon");
     }

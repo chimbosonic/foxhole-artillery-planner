@@ -1,8 +1,5 @@
 use crate::models::{FiringSolution, Position, Weapon, WindInput};
 
-/// Meters per wind strength level for lateral drift.
-const WIND_DRIFT_PER_LEVEL: f64 = 8.0;
-
 /// Euclidean distance between two positions.
 pub fn distance(a: Position, b: Position) -> f64 {
     let dx = b.x - a.x;
@@ -33,11 +30,24 @@ pub fn accuracy_radius(weapon: &Weapon, dist: f64) -> f64 {
     weapon.acc_radius[0] + t * (weapon.acc_radius[1] - weapon.acc_radius[0])
 }
 
+/// Interpolate wind drift for a given distance.
+/// wind_drift[0] at min_range, wind_drift[1] at max_range.
+/// Same linear interpolation pattern as accuracy_radius.
+pub fn wind_drift_at_range(weapon: &Weapon, dist: f64) -> f64 {
+    let range_span = weapon.max_range - weapon.min_range;
+    if range_span <= 0.0 {
+        return weapon.wind_drift[0];
+    }
+    let t = ((dist - weapon.min_range) / range_span).clamp(0.0, 1.0);
+    weapon.wind_drift[0] + t * (weapon.wind_drift[1] - weapon.wind_drift[0])
+}
+
 /// Compute the wind offset vector in meters (dx_wind, dy_wind).
 /// Wind direction is where the wind blows FROM (compass degrees).
-/// The drift is perpendicular-ish: wind pushes shells in the direction the wind blows TO.
-fn wind_offset(wind: &WindInput) -> (f64, f64) {
-    let strength_m = wind.strength as f64 * WIND_DRIFT_PER_LEVEL;
+/// Drift magnitude scales with weapon type, range, and wind strength (0-5).
+fn wind_offset(wind: &WindInput, weapon: &Weapon, dist: f64) -> (f64, f64) {
+    let base_drift = wind_drift_at_range(weapon, dist);
+    let strength_m = base_drift * (wind.strength as f64 / 5.0);
     // Wind blows FROM `direction`, so shells drift TOWARD the opposite direction.
     // Convert "blows from" to "pushes to": add 180 degrees.
     let push_dir = (wind.direction + 180.0) % 360.0;
@@ -62,7 +72,7 @@ pub fn firing_solution(
 
     let (wind_adjusted_azimuth, wind_adjusted_distance, wind_offset_meters) = match wind {
         Some(w) if w.strength > 0 => {
-            let (wdx, wdy) = wind_offset(w);
+            let (wdx, wdy) = wind_offset(w, weapon, dist);
             let drift_magnitude = (wdx * wdx + wdy * wdy).sqrt();
             // To compensate for wind drift, aim at target - wind_offset
             let compensated = Position {
@@ -99,6 +109,7 @@ mod tests {
             min_range: 100.0,
             max_range: 300.0,
             acc_radius: [10.0, 30.0],
+            wind_drift: [10.0, 30.0],
         }
     }
 
@@ -161,6 +172,59 @@ mod tests {
     fn test_accuracy_midpoint() {
         let w = test_weapon();
         assert!((accuracy_radius(&w, 200.0) - 20.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_wind_drift_at_min_range() {
+        let w = test_weapon();
+        assert!((wind_drift_at_range(&w, 100.0) - 10.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_wind_drift_at_max_range() {
+        let w = test_weapon();
+        assert!((wind_drift_at_range(&w, 300.0) - 30.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_wind_drift_at_midpoint() {
+        let w = test_weapon();
+        assert!((wind_drift_at_range(&w, 200.0) - 20.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_wind_drift_scales_with_strength() {
+        // At max range with wind_drift=[10,30], base drift = 30m
+        // Strength 5 → 30 * 5/5 = 30m, Strength 3 → 30 * 3/5 = 18m
+        let w = test_weapon();
+        let gun = Position { x: 0.0, y: 0.0 };
+        let target = Position { x: 0.0, y: -300.0 }; // 300m north = max range
+
+        let wind5 = WindInput { direction: 270.0, strength: 5 };
+        let sol5 = firing_solution(gun, target, &w, Some(&wind5));
+        assert!((sol5.wind_offset_meters.unwrap() - 30.0).abs() < 1e-6);
+
+        let wind3 = WindInput { direction: 270.0, strength: 3 };
+        let sol3 = firing_solution(gun, target, &w, Some(&wind3));
+        assert!((sol3.wind_offset_meters.unwrap() - 18.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_wind_drift_scales_with_range() {
+        // At min range (100m): drift = 10 * 5/5 = 10m
+        // At max range (300m): drift = 30 * 5/5 = 30m
+        let w = test_weapon();
+        let gun = Position { x: 0.0, y: 0.0 };
+
+        let wind = WindInput { direction: 270.0, strength: 5 };
+
+        let target_min = Position { x: 0.0, y: -100.0 };
+        let sol_min = firing_solution(gun, target_min, &w, Some(&wind));
+        assert!((sol_min.wind_offset_meters.unwrap() - 10.0).abs() < 1e-6);
+
+        let target_max = Position { x: 0.0, y: -300.0 };
+        let sol_max = firing_solution(gun, target_max, &w, Some(&wind));
+        assert!((sol_max.wind_offset_meters.unwrap() - 30.0).abs() < 1e-6);
     }
 
     #[test]

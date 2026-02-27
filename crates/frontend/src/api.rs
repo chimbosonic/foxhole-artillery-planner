@@ -141,6 +141,8 @@ pub struct WeaponData {
     pub max_range: f64,
     pub acc_radius_min: f64,
     pub acc_radius_max: f64,
+    pub wind_drift_min: f64,
+    pub wind_drift_max: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -202,7 +204,7 @@ pub struct WeaponsResponse {
 
 pub async fn fetch_weapons() -> Result<Vec<WeaponData>, String> {
     let resp: WeaponsResponse = query(
-        r#"query { weapons { slug faction displayName minRange maxRange accRadiusMin accRadiusMax } }"#,
+        r#"query { weapons { slug faction displayName minRange maxRange accRadiusMin accRadiusMax windDriftMin windDriftMax } }"#,
         None,
     )
     .await?;
@@ -340,7 +342,7 @@ mod tests {
 
     #[test]
     fn test_weapons_response_deserializes() {
-        let json = r#"{"weapons":[{"slug":"storm-cannon","faction":"BOTH","displayName":"Storm Cannon","minRange":400.0,"maxRange":1000.0,"accRadiusMin":50.0,"accRadiusMax":50.0}]}"#;
+        let json = r#"{"weapons":[{"slug":"storm-cannon","faction":"BOTH","displayName":"Storm Cannon","minRange":400.0,"maxRange":1000.0,"accRadiusMin":50.0,"accRadiusMax":50.0,"windDriftMin":20.0,"windDriftMax":50.0}]}"#;
         let resp: WeaponsResponse = serde_json::from_str(json).unwrap();
         assert_eq!(resp.weapons.len(), 1);
         assert_eq!(resp.weapons[0].slug, "storm-cannon");
