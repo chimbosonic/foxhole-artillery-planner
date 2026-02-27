@@ -12,7 +12,7 @@ pub fn WeaponSelector(
 
     rsx! {
         div { class: "panel",
-            h3 { "Weapon" }
+            h3 { "Active Weapon" }
             select {
                 value: "{selected_weapon}",
                 onchange: move |evt: Event<FormData>| {

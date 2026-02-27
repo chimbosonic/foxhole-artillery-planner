@@ -23,6 +23,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     let mut spotter_positions = use_signal(Vec::<(f64, f64)>::new);
     let mut wind_direction = use_signal(|| None::<f64>);
     let mut wind_strength = use_signal(|| 0u32);
+    let mut gun_weapon_ids = use_signal(Vec::<String>::new);
     let mut plan_name = use_signal(|| "New Plan".to_string());
     let mut plan_url = use_signal(|| None::<String>);
     let mut firing_solutions = use_signal(Vec::<Option<FiringSolutionData>>::new);
@@ -34,7 +35,10 @@ pub fn Planner(plan_id: Option<String>) -> Element {
             if let Some(id) = plan_id {
                 if let Ok(Some(plan)) = api::fetch_plan(&id).await {
                     selected_map.set(plan.map_id);
-                    selected_weapon.set(plan.weapon_id);
+                    if let Some(first) = plan.weapon_ids.first() {
+                        selected_weapon.set(first.clone());
+                    }
+                    gun_weapon_ids.set(plan.weapon_ids);
                     plan_name.set(plan.name);
                     // Plan stores meter coordinates, convert to image pixels
                     gun_positions.set(
@@ -57,22 +61,26 @@ pub fn Planner(plan_id: Option<String>) -> Element {
 
     // Auto-calculate when inputs change — convert pixel positions to meters for the API
     let _calc_effect = use_resource(move || {
-        let weapon = selected_weapon.read().clone();
+        let gun_wids = gun_weapon_ids.read().clone();
         let guns = gun_positions.read().clone();
         let targets = target_positions.read().clone();
         let w_dir = *wind_direction.read();
         let w_str = *wind_strength.read();
         async move {
-            if weapon.is_empty() || guns.is_empty() || targets.is_empty() {
+            if guns.is_empty() || targets.is_empty() {
                 firing_solutions.set(vec![]);
                 return;
             }
-            let pairs: Vec<_> = guns.iter().zip(targets.iter()).collect();
-            let mut results = Vec::with_capacity(pairs.len());
-            for (g_px, t_px) in &pairs {
+            let mut results = Vec::with_capacity(guns.len().min(targets.len()));
+            for (i, (g_px, t_px)) in guns.iter().zip(targets.iter()).enumerate() {
+                let wid = gun_wids.get(i).cloned().unwrap_or_default();
+                if wid.is_empty() {
+                    results.push(None);
+                    continue;
+                }
                 let (gx, gy) = coords::map_px_to_meters(g_px.0, g_px.1);
                 let (tx, ty) = coords::map_px_to_meters(t_px.0, t_px.1);
-                match api::calculate(gx, gy, tx, ty, &weapon, w_dir, Some(w_str)).await {
+                match api::calculate(gx, gy, tx, ty, &wid, w_dir, Some(w_str)).await {
                     Ok(sol) => results.push(Some(sol)),
                     Err(_) => results.push(None),
                 }
@@ -97,10 +105,6 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     }
 
     let current_map = selected_map.read().clone();
-    let current_weapon_slug = selected_weapon.read().clone();
-
-    // Find the currently selected weapon data for range visualization
-    let current_weapon_data = weapons.iter().find(|w| w.slug == current_weapon_slug).cloned();
 
     // Compute accuracy radii in image pixels for the map overlay (one per pair)
     let accuracy_radii_px: Vec<Option<f64>> = firing_solutions.read().iter().map(|sol| {
@@ -143,6 +147,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                             gun_positions.set(vec![]);
                             target_positions.set(vec![]);
                             spotter_positions.set(vec![]);
+                            gun_weapon_ids.set(vec![]);
                         },
                         for m in &maps {
                             option {
@@ -169,6 +174,8 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     gun_positions: gun_positions.read().clone(),
                     target_positions: target_positions.read().clone(),
                     spotter_positions: spotter_positions.read().clone(),
+                    gun_weapon_ids: gun_weapon_ids.read().clone(),
+                    weapons: weapons.clone(),
                 }
 
                 PlanPanel {
@@ -176,7 +183,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     plan_url: plan_url,
                     on_save: move |_| {
                         let map = selected_map.read().clone();
-                        let weapon = selected_weapon.read().clone();
+                        let wids = gun_weapon_ids.read().clone();
                         let name = plan_name.read().clone();
                         let guns = gun_positions.read().clone();
                         let targets = target_positions.read().clone();
@@ -195,7 +202,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                                 .map(|s| coords::map_px_to_meters(s.0, s.1))
                                 .collect();
                             match api::create_plan(
-                                &name, &map, &weapon,
+                                &name, &map, &wids,
                                 &gun_m, &tgt_m, &spt_m,
                                 w_dir, Some(w_str),
                             ).await {
@@ -248,7 +255,9 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     gun_positions: gun_positions,
                     target_positions: target_positions,
                     spotter_positions: spotter_positions,
-                    selected_weapon: current_weapon_data,
+                    gun_weapon_ids: gun_weapon_ids,
+                    selected_weapon_slug: selected_weapon,
+                    weapons: weapons.clone(),
                     accuracy_radii_px: accuracy_radii_px,
                 }
             }

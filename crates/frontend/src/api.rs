@@ -32,7 +32,7 @@ pub fn build_calculate_variables(
 pub fn build_create_plan_variables(
     name: &str,
     map_id: &str,
-    weapon_id: &str,
+    weapon_ids: &[String],
     gun_positions: &[(f64, f64)],
     target_positions: &[(f64, f64)],
     spotter_positions: &[(f64, f64)],
@@ -46,7 +46,7 @@ pub fn build_create_plan_variables(
         "input": {
             "name": name,
             "mapId": map_id,
-            "weaponId": weapon_id,
+            "weaponIds": weapon_ids,
             "gunPositions": to_json(gun_positions),
             "targetPositions": to_json(target_positions),
             "spotterPositions": to_json(spotter_positions),
@@ -160,7 +160,8 @@ pub struct PlanData {
     pub id: String,
     pub name: String,
     pub map_id: String,
-    pub weapon_id: String,
+    #[serde(default)]
+    pub weapon_ids: Vec<String>,
     pub gun_positions: Vec<PositionData>,
     pub target_positions: Vec<PositionData>,
     pub spotter_positions: Vec<PositionData>,
@@ -239,7 +240,7 @@ pub struct CreatePlanResponse {
 pub async fn create_plan(
     name: &str,
     map_id: &str,
-    weapon_id: &str,
+    weapon_ids: &[String],
     gun_positions: &[(f64, f64)],
     target_positions: &[(f64, f64)],
     spotter_positions: &[(f64, f64)],
@@ -247,13 +248,13 @@ pub async fn create_plan(
     wind_strength: Option<u32>,
 ) -> Result<PlanData, String> {
     let variables = build_create_plan_variables(
-        name, map_id, weapon_id, gun_positions, target_positions, spotter_positions, wind_direction, wind_strength,
+        name, map_id, weapon_ids, gun_positions, target_positions, spotter_positions, wind_direction, wind_strength,
     );
 
     let resp: CreatePlanResponse = query(
         r#"mutation CreatePlan($input: CreatePlanInput!) {
             createPlan(input: $input) {
-                id name mapId weaponId
+                id name mapId weaponIds
                 gunPositions { x y } targetPositions { x y } spotterPositions { x y }
                 windDirection windStrength
             }
@@ -275,7 +276,7 @@ pub async fn fetch_plan(id: &str) -> Result<Option<PlanData>, String> {
     let resp: FetchPlanResponse = query(
         r#"query FetchPlan($id: ID!) {
             plan(id: $id) {
-                id name mapId weaponId
+                id name mapId weaponIds
                 gunPositions { x y } targetPositions { x y } spotterPositions { x y }
                 windDirection windStrength
             }
@@ -353,10 +354,11 @@ mod tests {
 
     #[test]
     fn test_plan_data_deserializes() {
-        let json = r#"{"plan":{"id":"abc-123","name":"Test Plan","mapId":"deadlands","weaponId":"storm-cannon","gunPositions":[{"x":100.0,"y":200.0}],"targetPositions":[{"x":300.0,"y":400.0}],"spotterPositions":[],"windDirection":90.0,"windStrength":3}}"#;
+        let json = r#"{"plan":{"id":"abc-123","name":"Test Plan","mapId":"deadlands","weaponIds":["storm-cannon"],"gunPositions":[{"x":100.0,"y":200.0}],"targetPositions":[{"x":300.0,"y":400.0}],"spotterPositions":[],"windDirection":90.0,"windStrength":3}}"#;
         let resp: FetchPlanResponse = serde_json::from_str(json).unwrap();
         let plan = resp.plan.unwrap();
         assert_eq!(plan.id, "abc-123");
+        assert_eq!(plan.weapon_ids, vec!["storm-cannon"]);
         assert_eq!(plan.gun_positions.len(), 1);
         assert_eq!(plan.gun_positions[0].x, 100.0);
         assert!(plan.spotter_positions.is_empty());
@@ -406,12 +408,13 @@ mod tests {
     #[test]
     fn test_build_create_plan_variables() {
         let vars = build_create_plan_variables(
-            "My Plan", "deadlands", "storm-cannon",
+            "My Plan", "deadlands", &["storm-cannon".to_string()],
             &[(10.0, 20.0)], &[(30.0, 40.0)], &[],
             Some(180.0), Some(2),
         );
         assert_eq!(vars["input"]["name"], "My Plan");
         assert_eq!(vars["input"]["mapId"], "deadlands");
+        assert_eq!(vars["input"]["weaponIds"][0], "storm-cannon");
         assert_eq!(vars["input"]["gunPositions"][0]["x"], 10.0);
         assert_eq!(vars["input"]["gunPositions"][0]["y"], 20.0);
         assert_eq!(vars["input"]["targetPositions"][0]["x"], 30.0);
@@ -421,7 +424,7 @@ mod tests {
     #[test]
     fn test_build_create_plan_variables_empty() {
         let vars = build_create_plan_variables(
-            "Empty Plan", "deadlands", "mortar",
+            "Empty Plan", "deadlands", &["mortar".to_string()],
             &[], &[], &[],
             None, None,
         );

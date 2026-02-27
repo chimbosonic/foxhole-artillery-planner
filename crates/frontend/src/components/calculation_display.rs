@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::api::FiringSolutionData;
+use crate::api::{FiringSolutionData, WeaponData};
 use crate::coords;
 
 #[component]
@@ -9,6 +9,8 @@ pub fn CalculationDisplay(
     gun_positions: Vec<(f64, f64)>,
     target_positions: Vec<(f64, f64)>,
     spotter_positions: Vec<(f64, f64)>,
+    gun_weapon_ids: Vec<String>,
+    weapons: Vec<WeaponData>,
 ) -> Element {
     let num_pairs = gun_positions.len().min(target_positions.len());
     let has_any_solution = solutions.iter().any(|s| s.is_some());
@@ -70,10 +72,22 @@ pub fn CalculationDisplay(
                     let gun = gun_positions.get(pair_idx);
                     let target = target_positions.get(pair_idx);
 
+                    let weapon_name = gun_weapon_ids.get(pair_idx)
+                        .and_then(|slug| weapons.iter().find(|w| w.slug == *slug))
+                        .map(|w| w.display_name.clone());
+
                     rsx! {
                         if multiple_pairs {
                             h4 { style: "margin: 8px 0 4px; color: var(--text-dim);",
-                                "Pair {pair_idx + 1}"
+                                if let Some(ref wn) = weapon_name {
+                                    "Pair {pair_idx + 1} — {wn}"
+                                } else {
+                                    "Pair {pair_idx + 1}"
+                                }
+                            }
+                        } else if let Some(ref wn) = weapon_name {
+                            p { style: "color: var(--text-dim); font-size: 12px; margin: 2px 0 4px;",
+                                "{wn}"
                             }
                         }
 

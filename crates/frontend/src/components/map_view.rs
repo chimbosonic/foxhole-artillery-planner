@@ -125,7 +125,7 @@ fn build_svg_content(
     guns: &[(f64, f64)],
     targets: &[(f64, f64)],
     spotters: &[(f64, f64)],
-    weapon: &Option<WeaponData>,
+    gun_weapons: &[Option<&WeaponData>],
     accuracy_radii_px: &[Option<f64>],
     zoom: f64,
 ) -> String {
@@ -137,7 +137,7 @@ fn build_svg_content(
         build_keypad_lines(&mut svg);
         build_keypad_labels(&mut svg);
     }
-    build_range_circles(&mut svg, guns, weapon, zoom);
+    build_range_circles(&mut svg, guns, gun_weapons, zoom);
     build_firing_lines(&mut svg, guns, targets, zoom);
     build_accuracy_circles(&mut svg, targets, accuracy_radii_px, zoom);
     build_gun_markers(&mut svg, guns, zoom);
@@ -240,12 +240,11 @@ fn build_keypad_labels(svg: &mut String) {
 fn build_range_circles(
     svg: &mut String,
     guns: &[(f64, f64)],
-    weapon: &Option<WeaponData>,
+    gun_weapons: &[Option<&WeaponData>],
     zoom: f64,
 ) {
-    let Some(w) = weapon else { return };
-    let num_paired = guns.len(); // range circles shown for all guns
-    for &(gx, gy) in &guns[..num_paired] {
+    for (i, &(gx, gy)) in guns.iter().enumerate() {
+        let Some(w) = gun_weapons.get(i).and_then(|o| *o) else { continue };
         let s = 1.0 / zoom.min(5.0);
         let max_r = coords::meters_to_image_px(w.max_range);
         let sw1 = 1.5 * s;
@@ -386,7 +385,9 @@ pub fn MapView(
     gun_positions: Signal<Vec<(f64, f64)>>,
     target_positions: Signal<Vec<(f64, f64)>>,
     spotter_positions: Signal<Vec<(f64, f64)>>,
-    selected_weapon: Option<WeaponData>,
+    gun_weapon_ids: Signal<Vec<String>>,
+    selected_weapon_slug: Signal<String>,
+    weapons: Vec<WeaponData>,
     accuracy_radii_px: Vec<Option<f64>>,
 ) -> Element {
     let image_url = format!("/static/images/maps/{}.webp", map_file_name);
@@ -408,11 +409,17 @@ pub fn MapView(
     let guns = gun_positions.read().clone();
     let targets = target_positions.read().clone();
     let spotters = spotter_positions.read().clone();
+    let wids = gun_weapon_ids.read().clone();
+
+    // Resolve per-gun weapon data
+    let gun_weapons: Vec<Option<&WeaponData>> = wids.iter().map(|slug| {
+        weapons.iter().find(|w| w.slug == *slug)
+    }).collect();
 
     // Snapshot current transform for the render
     let cur_zoom = *zoom.read();
 
-    let svg_content = build_svg_content(&guns, &targets, &spotters, &selected_weapon, &accuracy_radii_px, cur_zoom);
+    let svg_content = build_svg_content(&guns, &targets, &spotters, &gun_weapons, &accuracy_radii_px, cur_zoom);
     let svg_html = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;">{}</svg>"#,
         grid::MAP_WIDTH_PX, grid::MAP_HEIGHT_PX, svg_content
@@ -522,7 +529,10 @@ pub fn MapView(
                     ) {
                         let mode = *placement_mode.read();
                         match mode {
-                            PlacementMode::Gun => gun_positions.write().push((img_x, img_y)),
+                            PlacementMode::Gun => {
+                                gun_positions.write().push((img_x, img_y));
+                                gun_weapon_ids.write().push(selected_weapon_slug.read().clone());
+                            }
                             PlacementMode::Target => target_positions.write().push((img_x, img_y)),
                             PlacementMode::Spotter => spotter_positions.write().push((img_x, img_y)),
                         }
@@ -557,6 +567,7 @@ pub fn MapView(
                         PlacementMode::Gun => {
                             if let Some(idx) = find_nearest(&guns_snap, click, threshold) {
                                 gun_positions.write().remove(idx);
+                                gun_weapon_ids.write().remove(idx);
                                 true
                             } else { false }
                         }
@@ -590,7 +601,10 @@ pub fn MapView(
 
                         if let Some((idx, _, kind)) = nearest {
                             match kind {
-                                0 => { gun_positions.write().remove(idx); }
+                                0 => {
+                                    gun_positions.write().remove(idx);
+                                    gun_weapon_ids.write().remove(idx);
+                                }
                                 1 => { target_positions.write().remove(idx); }
                                 _ => { spotter_positions.write().remove(idx); }
                             }

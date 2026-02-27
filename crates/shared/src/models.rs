@@ -67,7 +67,8 @@ pub struct Plan {
     pub id: Uuid,
     pub name: String,
     pub map_id: String,
-    pub weapon_id: String,
+    #[serde(default)]
+    pub weapon_ids: Vec<String>,
     /// Legacy single-position field for backwards-compatible deserialization.
     #[serde(default, skip_serializing)]
     pub gun_position: Option<Position>,

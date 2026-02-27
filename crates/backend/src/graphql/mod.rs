@@ -80,7 +80,7 @@ pub struct GqlPlan {
     pub id: ID,
     pub name: String,
     pub map_id: String,
-    pub weapon_id: String,
+    pub weapon_ids: Vec<String>,
     pub gun_positions: Vec<GqlPosition>,
     pub target_positions: Vec<GqlPosition>,
     pub spotter_positions: Vec<GqlPosition>,
@@ -96,7 +96,7 @@ impl From<models::Plan> for GqlPlan {
             id: ID(p.id.to_string()),
             name: p.name,
             map_id: p.map_id,
-            weapon_id: p.weapon_id,
+            weapon_ids: p.weapon_ids,
             gun_positions: p.gun_positions.into_iter().map(|pos| GqlPosition { x: pos.x, y: pos.y }).collect(),
             target_positions: p.target_positions.into_iter().map(|pos| GqlPosition { x: pos.x, y: pos.y }).collect(),
             spotter_positions: p.spotter_positions.into_iter().map(|pos| GqlPosition { x: pos.x, y: pos.y }).collect(),
@@ -134,7 +134,7 @@ pub struct CalculateInput {
 pub struct CreatePlanInput {
     pub name: String,
     pub map_id: String,
-    pub weapon_id: String,
+    pub weapon_ids: Vec<String>,
     pub gun_positions: Option<Vec<PositionInput>>,
     pub target_positions: Option<Vec<PositionInput>>,
     pub spotter_positions: Option<Vec<PositionInput>>,
@@ -147,7 +147,7 @@ pub struct UpdatePlanInput {
     pub id: ID,
     pub name: Option<String>,
     pub map_id: Option<String>,
-    pub weapon_id: Option<String>,
+    pub weapon_ids: Option<Vec<String>>,
     pub gun_positions: Option<Vec<PositionInput>>,
     pub target_positions: Option<Vec<PositionInput>>,
     pub spotter_positions: Option<Vec<PositionInput>>,
@@ -285,7 +285,7 @@ impl MutationRoot {
             id: uuid::Uuid::new_v4(),
             name: input.name,
             map_id: input.map_id,
-            weapon_id: input.weapon_id,
+            weapon_ids: input.weapon_ids,
             gun_position: None,
             target_position: None,
             spotter_position: None,
@@ -323,8 +323,8 @@ impl MutationRoot {
         if let Some(map_id) = input.map_id {
             plan.map_id = map_id;
         }
-        if let Some(weapon_id) = input.weapon_id {
-            plan.weapon_id = weapon_id;
+        if let Some(weapon_ids) = input.weapon_ids {
+            plan.weapon_ids = weapon_ids;
         }
         if let Some(positions) = input.gun_positions {
             plan.gun_positions = positions.into_iter().map(|p| Position { x: p.x, y: p.y }).collect();
