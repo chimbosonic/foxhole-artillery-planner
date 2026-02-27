@@ -1,11 +1,11 @@
 use dioxus::html::geometry::WheelDelta;
-use dioxus::html::input_data::keyboard_types::Key;
 use dioxus::html::input_data::MouseButton;
 use dioxus::prelude::*;
 use foxhole_shared::grid;
 
 use crate::api::WeaponData;
 use crate::coords;
+use crate::pages::planner::{capture_snapshot, push_undo, PlanSnapshot};
 
 const MAP_CONTAINER_ID: &str = "artillery-map-container";
 
@@ -78,13 +78,7 @@ fn zoom_pan_at_cursor(
 /// rendered height is `container_w * (MAP_HEIGHT_PX / MAP_WIDTH_PX)`, which may
 /// exceed the container height.  We must account for this so the user can pan
 /// down to see the full map.
-fn clamp_pan(
-    pan_x: f64,
-    pan_y: f64,
-    zoom: f64,
-    container_w: f64,
-    container_h: f64,
-) -> (f64, f64) {
+fn clamp_pan(pan_x: f64, pan_y: f64, zoom: f64, container_w: f64, container_h: f64) -> (f64, f64) {
     let content_w = container_w * zoom;
     let content_h = container_w * (grid::MAP_HEIGHT_PX / grid::MAP_WIDTH_PX) * zoom;
     let min_pan_x = -(content_w - container_w).max(0.0);
@@ -110,7 +104,7 @@ fn wheel_delta_y(delta: WheelDelta) -> f64 {
 }
 
 // ---------------------------------------------------------------------------
-// Marker removal helper
+// Marker removal helpers
 // ---------------------------------------------------------------------------
 
 /// Euclidean distance between two points.
@@ -134,6 +128,44 @@ fn find_nearest(positions: &[(f64, f64)], click: (f64, f64), threshold: f64) -> 
         }
     }
     best_idx
+}
+
+/// Remove a marker by kind and index, fixing up gun-target pairings.
+pub fn remove_marker(
+    kind: MarkerKind,
+    index: usize,
+    gun_positions: &mut Signal<Vec<(f64, f64)>>,
+    target_positions: &mut Signal<Vec<(f64, f64)>>,
+    spotter_positions: &mut Signal<Vec<(f64, f64)>>,
+    gun_weapon_ids: &mut Signal<Vec<String>>,
+    gun_target_indices: &mut Signal<Vec<Option<usize>>>,
+) {
+    match kind {
+        MarkerKind::Gun => {
+            gun_positions.write().remove(index);
+            gun_weapon_ids.write().remove(index);
+            let mut pairings = gun_target_indices.write();
+            if index < pairings.len() {
+                pairings.remove(index);
+            }
+        }
+        MarkerKind::Target => {
+            target_positions.write().remove(index);
+            let mut pairings = gun_target_indices.write();
+            for entry in pairings.iter_mut() {
+                if let Some(ti) = entry {
+                    if *ti == index {
+                        *entry = None;
+                    } else if *ti > index {
+                        *ti -= 1;
+                    }
+                }
+            }
+        }
+        MarkerKind::Spotter => {
+            spotter_positions.write().remove(index);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -163,7 +195,14 @@ fn build_svg_content(
     }
     build_range_circles(&mut svg, guns, gun_weapons, zoom);
     build_firing_lines(&mut svg, guns, targets, gun_target_indices, zoom);
-    build_accuracy_circles(&mut svg, guns, targets, gun_target_indices, accuracy_radii_px, zoom);
+    build_accuracy_circles(
+        &mut svg,
+        guns,
+        targets,
+        gun_target_indices,
+        accuracy_radii_px,
+        zoom,
+    );
     build_gun_markers(&mut svg, guns, zoom, selected);
     build_target_markers(&mut svg, targets, zoom, selected);
     build_spotter_markers(&mut svg, spotters, zoom, selected);
@@ -268,7 +307,9 @@ fn build_range_circles(
     zoom: f64,
 ) {
     for (i, &(gx, gy)) in guns.iter().enumerate() {
-        let Some(w) = gun_weapons.get(i).and_then(|o| *o) else { continue };
+        let Some(w) = gun_weapons.get(i).and_then(|o| *o) else {
+            continue;
+        };
         let s = 1.0 / zoom.min(5.0);
         let max_r = coords::meters_to_image_px(w.max_range);
         let sw1 = 1.5 * s;
@@ -323,7 +364,7 @@ fn build_accuracy_circles(
         if let (Some(ti), Some(acc_r)) = (target_idx, acc_r) {
             if let Some(&(tx, ty)) = targets.get(ti) {
                 let s = 1.0 / zoom.min(5.0);
-                let sw = 1.0 * s;
+                let sw = s;
                 let da1 = 3.0 * s;
                 let da2 = 2.0 * s;
                 svg.push_str(&format!(
@@ -343,7 +384,12 @@ fn marker_label(base: &str, index: usize, total: usize) -> String {
     }
 }
 
-fn build_gun_markers(svg: &mut String, guns: &[(f64, f64)], zoom: f64, selected: Option<SelectedMarker>) {
+fn build_gun_markers(
+    svg: &mut String,
+    guns: &[(f64, f64)],
+    zoom: f64,
+    selected: Option<SelectedMarker>,
+) {
     let total = guns.len();
     for (i, &(gx, gy)) in guns.iter().enumerate() {
         let s = 1.0 / zoom.min(5.0);
@@ -359,13 +405,23 @@ fn build_gun_markers(svg: &mut String, guns: &[(f64, f64)], zoom: f64, selected:
         svg.push_str(&format!(
             r##"<text x="{gx}" y="{ty}" fill="white" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
         ));
-        if selected == Some(SelectedMarker { kind: MarkerKind::Gun, index: i }) {
+        if selected
+            == Some(SelectedMarker {
+                kind: MarkerKind::Gun,
+                index: i,
+            })
+        {
             build_selection_ring(svg, gx, gy, s);
         }
     }
 }
 
-fn build_target_markers(svg: &mut String, targets: &[(f64, f64)], zoom: f64, selected: Option<SelectedMarker>) {
+fn build_target_markers(
+    svg: &mut String,
+    targets: &[(f64, f64)],
+    zoom: f64,
+    selected: Option<SelectedMarker>,
+) {
     let total = targets.len();
     for (i, &(tx, ty)) in targets.iter().enumerate() {
         let s = 1.0 / zoom.min(5.0);
@@ -392,13 +448,23 @@ fn build_target_markers(svg: &mut String, targets: &[(f64, f64)], zoom: f64, sel
         svg.push_str(&format!(
             r##"<text x="{tx}" y="{label_y}" fill="#ffcccc" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
         ));
-        if selected == Some(SelectedMarker { kind: MarkerKind::Target, index: i }) {
+        if selected
+            == Some(SelectedMarker {
+                kind: MarkerKind::Target,
+                index: i,
+            })
+        {
             build_selection_ring(svg, tx, ty, s);
         }
     }
 }
 
-fn build_spotter_markers(svg: &mut String, spotters: &[(f64, f64)], zoom: f64, selected: Option<SelectedMarker>) {
+fn build_spotter_markers(
+    svg: &mut String,
+    spotters: &[(f64, f64)],
+    zoom: f64,
+    selected: Option<SelectedMarker>,
+) {
     let total = spotters.len();
     for (i, &(sx, sy)) in spotters.iter().enumerate() {
         let s = 1.0 / zoom.min(5.0);
@@ -414,7 +480,12 @@ fn build_spotter_markers(svg: &mut String, spotters: &[(f64, f64)], zoom: f64, s
         svg.push_str(&format!(
             r##"<text x="{sx}" y="{label_y}" fill="#cce7ff" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
         ));
-        if selected == Some(SelectedMarker { kind: MarkerKind::Spotter, index: i }) {
+        if selected
+            == Some(SelectedMarker {
+                kind: MarkerKind::Spotter,
+                index: i,
+            })
+        {
             build_selection_ring(svg, sx, sy, s);
         }
     }
@@ -436,6 +507,7 @@ fn build_selection_ring(svg: &mut String, cx: f64, cy: f64, s: f64) {
 // ---------------------------------------------------------------------------
 
 #[component]
+#[allow(clippy::too_many_arguments)]
 pub fn MapView(
     map_file_name: String,
     placement_mode: Signal<PlacementMode>,
@@ -448,6 +520,11 @@ pub fn MapView(
     weapons: Vec<WeaponData>,
     accuracy_radii_px: Vec<Option<f64>>,
     selected_marker: Signal<Option<SelectedMarker>>,
+    undo_stack: Signal<Vec<PlanSnapshot>>,
+    redo_stack: Signal<Vec<PlanSnapshot>>,
+    wind_direction: Signal<Option<f64>>,
+    wind_strength: Signal<u32>,
+    reset_view_counter: Signal<u64>,
 ) -> Element {
     let image_url = format!("/static/images/maps/{}.webp", map_file_name);
 
@@ -455,6 +532,29 @@ pub fn MapView(
     let mut zoom = use_signal(|| 1.0_f64);
     let mut pan_x = use_signal(|| 0.0_f64);
     let mut pan_y = use_signal(|| 0.0_f64);
+
+    // Reset zoom/pan when parent signals via reset_view_counter
+    use_effect(move || {
+        // Read the Signal inside the effect so Dioxus tracks it as a dependency
+        let _counter = *reset_view_counter.read();
+        zoom.set(1.0);
+        pan_x.set(0.0);
+        pan_y.set(0.0);
+    });
+
+    // Mutable bindings for undo/redo (Signal is Copy)
+    let mut undo_stack = undo_stack;
+    let mut redo_stack = redo_stack;
+
+    // Local closure to snapshot state before mutations
+    let mut push_snapshot = move || {
+        let snap = capture_snapshot(
+            &gun_positions, &target_positions, &spotter_positions,
+            &gun_weapon_ids, &gun_target_indices,
+            &wind_direction, &wind_strength,
+        );
+        push_undo(&mut undo_stack, &mut redo_stack, snap);
+    };
 
     // Drag state
     let mut is_dragging = use_signal(|| false);
@@ -472,18 +572,30 @@ pub fn MapView(
     let pairings = gun_target_indices.read().clone();
 
     // Resolve per-gun weapon data
-    let gun_weapons: Vec<Option<&WeaponData>> = wids.iter().map(|slug| {
-        weapons.iter().find(|w| w.slug == *slug)
-    }).collect();
+    let gun_weapons: Vec<Option<&WeaponData>> = wids
+        .iter()
+        .map(|slug| weapons.iter().find(|w| w.slug == *slug))
+        .collect();
 
     // Snapshot current transform for the render
     let cur_zoom = *zoom.read();
     let cur_selected = *selected_marker.read();
 
-    let svg_content = build_svg_content(&guns, &targets, &spotters, &gun_weapons, &pairings, &accuracy_radii_px, cur_zoom, cur_selected);
+    let svg_content = build_svg_content(
+        &guns,
+        &targets,
+        &spotters,
+        &gun_weapons,
+        &pairings,
+        &accuracy_radii_px,
+        cur_zoom,
+        cur_selected,
+    );
     let svg_html = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;">{}</svg>"#,
-        grid::MAP_WIDTH_PX, grid::MAP_HEIGHT_PX, svg_content
+        grid::MAP_WIDTH_PX,
+        grid::MAP_HEIGHT_PX,
+        svg_content
     );
     let cur_pan_x = *pan_x.read();
     let cur_pan_y = *pan_y.read();
@@ -502,30 +614,47 @@ pub fn MapView(
     };
 
     // Build coord readout tags
-    let gun_tags: Vec<(String, String)> = guns.iter().enumerate().map(|(i, pos)| {
-        let label = if guns.len() <= 1 { "GUN".to_string() } else { format!("GUN {}", i + 1) };
-        (label, coords::format_px_as_grid(pos.0, pos.1))
-    }).collect();
-    let target_tags: Vec<(String, String)> = targets.iter().enumerate().map(|(i, pos)| {
-        let label = if targets.len() <= 1 { "TGT".to_string() } else { format!("TGT {}", i + 1) };
-        (label, coords::format_px_as_grid(pos.0, pos.1))
-    }).collect();
-    let spotter_tags: Vec<(String, String)> = spotters.iter().enumerate().map(|(i, pos)| {
-        let label = if spotters.len() <= 1 { "SPT".to_string() } else { format!("SPT {}", i + 1) };
-        (label, coords::format_px_as_grid(pos.0, pos.1))
-    }).collect();
+    let gun_tags: Vec<(String, String)> = guns
+        .iter()
+        .enumerate()
+        .map(|(i, pos)| {
+            let label = if guns.len() <= 1 {
+                "GUN".to_string()
+            } else {
+                format!("GUN {}", i + 1)
+            };
+            (label, coords::format_px_as_grid(pos.0, pos.1))
+        })
+        .collect();
+    let target_tags: Vec<(String, String)> = targets
+        .iter()
+        .enumerate()
+        .map(|(i, pos)| {
+            let label = if targets.len() <= 1 {
+                "TGT".to_string()
+            } else {
+                format!("TGT {}", i + 1)
+            };
+            (label, coords::format_px_as_grid(pos.0, pos.1))
+        })
+        .collect();
+    let spotter_tags: Vec<(String, String)> = spotters
+        .iter()
+        .enumerate()
+        .map(|(i, pos)| {
+            let label = if spotters.len() <= 1 {
+                "SPT".to_string()
+            } else {
+                format!("SPT {}", i + 1)
+            };
+            (label, coords::format_px_as_grid(pos.0, pos.1))
+        })
+        .collect();
 
     rsx! {
         div {
             id: MAP_CONTAINER_ID,
             class: "{container_class}",
-            tabindex: "0",
-
-            onkeydown: move |evt: Event<KeyboardData>| {
-                if evt.key() == Key::Escape {
-                    selected_marker.set(None);
-                }
-            },
 
             onwheel: move |evt: Event<WheelData>| {
                 evt.prevent_default();
@@ -603,6 +732,7 @@ pub fn MapView(
                         // existing target, pair the gun with that target instead of moving.
                         let cur_sel = *selected_marker.read();
                         if let Some(sm) = cur_sel {
+                            push_snapshot();
                             match sm.kind {
                                 MarkerKind::Gun => {
                                     let targets_snap = target_positions.read().clone();
@@ -635,6 +765,7 @@ pub fn MapView(
                         }
 
                         // Normal placement mode
+                        push_snapshot();
                         let mode = *placement_mode.read();
                         match mode {
                             PlacementMode::Gun => {
@@ -698,28 +829,17 @@ pub fn MapView(
 
                     // Check active placement mode's list first for priority
                     let mode = *placement_mode.read();
-                    let (removed, removed_kind, removed_idx) = match mode {
-                        PlacementMode::Gun => {
-                            if let Some(idx) = find_nearest(&guns_snap, click, threshold) {
-                                (true, Some(MarkerKind::Gun), Some(idx))
-                            } else { (false, None, None) }
-                        }
-                        PlacementMode::Target => {
-                            if let Some(idx) = find_nearest(&targets_snap, click, threshold) {
-                                (true, Some(MarkerKind::Target), Some(idx))
-                            } else { (false, None, None) }
-                        }
-                        PlacementMode::Spotter => {
-                            if let Some(idx) = find_nearest(&spotters_snap, click, threshold) {
-                                (true, Some(MarkerKind::Spotter), Some(idx))
-                            } else { (false, None, None) }
-                        }
+                    let mode_hit = match mode {
+                        PlacementMode::Gun => find_nearest(&guns_snap, click, threshold)
+                            .map(|idx| (MarkerKind::Gun, idx)),
+                        PlacementMode::Target => find_nearest(&targets_snap, click, threshold)
+                            .map(|idx| (MarkerKind::Target, idx)),
+                        PlacementMode::Spotter => find_nearest(&spotters_snap, click, threshold)
+                            .map(|idx| (MarkerKind::Spotter, idx)),
                     };
 
                     // If nothing found in the active mode's list, check all lists
-                    let (final_kind, final_idx) = if removed {
-                        (removed_kind, removed_idx)
-                    } else {
+                    let target = mode_hit.or_else(|| {
                         let gun_hit = find_nearest(&guns_snap, click, threshold)
                             .map(|idx| (idx, dist(&guns_snap[idx], click), MarkerKind::Gun));
                         let tgt_hit = find_nearest(&targets_snap, click, threshold)
@@ -727,45 +847,21 @@ pub fn MapView(
                         let spt_hit = find_nearest(&spotters_snap, click, threshold)
                             .map(|idx| (idx, dist(&spotters_snap[idx], click), MarkerKind::Spotter));
 
-                        let nearest = [gun_hit, tgt_hit, spt_hit]
+                        [gun_hit, tgt_hit, spt_hit]
                             .into_iter()
                             .flatten()
-                            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-
-                        match nearest {
-                            Some((idx, _, kind)) => (Some(kind), Some(idx)),
-                            None => (None, None),
-                        }
-                    };
+                            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                            .map(|(idx, _, kind)| (kind, idx))
+                    });
 
                     // Perform the removal and fixup
-                    if let (Some(kind), Some(idx)) = (final_kind, final_idx) {
-                        match kind {
-                            MarkerKind::Gun => {
-                                gun_positions.write().remove(idx);
-                                gun_weapon_ids.write().remove(idx);
-                                let mut pairings = gun_target_indices.write();
-                                if idx < pairings.len() {
-                                    pairings.remove(idx);
-                                }
-                            }
-                            MarkerKind::Target => {
-                                target_positions.write().remove(idx);
-                                let mut pairings = gun_target_indices.write();
-                                for entry in pairings.iter_mut() {
-                                    if let Some(ti) = entry {
-                                        if *ti == idx {
-                                            *entry = None;
-                                        } else if *ti > idx {
-                                            *ti -= 1;
-                                        }
-                                    }
-                                }
-                            }
-                            MarkerKind::Spotter => {
-                                spotter_positions.write().remove(idx);
-                            }
-                        }
+                    if let Some((kind, idx)) = target {
+                        push_snapshot();
+                        remove_marker(
+                            kind, idx,
+                            &mut gun_positions, &mut target_positions, &mut spotter_positions,
+                            &mut gun_weapon_ids, &mut gun_target_indices,
+                        );
                         // Fixup selection
                         if let Some(sm) = cur_sel {
                             if sm.kind == kind {
@@ -859,7 +955,10 @@ mod tests {
         let pairings = vec![None]; // Gun 0 unpaired
         let mut svg = String::new();
         build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0);
-        assert!(svg.is_empty(), "Unpaired gun should not produce a firing line");
+        assert!(
+            svg.is_empty(),
+            "Unpaired gun should not produce a firing line"
+        );
     }
 
     #[test]
@@ -869,7 +968,10 @@ mod tests {
         let pairings = vec![Some(5)]; // Out-of-bounds target index
         let mut svg = String::new();
         build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0);
-        assert!(svg.is_empty(), "Invalid target index should not produce a firing line");
+        assert!(
+            svg.is_empty(),
+            "Invalid target index should not produce a firing line"
+        );
     }
 
     #[test]
@@ -882,7 +984,10 @@ mod tests {
         build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0);
         // Count the number of line elements — should be 2
         let line_count = svg.matches("<line").count();
-        assert_eq!(line_count, 2, "Two guns pointing at same target should produce two lines");
+        assert_eq!(
+            line_count, 2,
+            "Two guns pointing at same target should produce two lines"
+        );
     }
 
     // --- build_accuracy_circles tests ---

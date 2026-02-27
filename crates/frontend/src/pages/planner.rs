@@ -1,12 +1,97 @@
+use dioxus::html::input_data::keyboard_types::{Key, Modifiers};
 use dioxus::prelude::*;
 
 use crate::api::{self, FiringSolutionData, MapData, WeaponData};
 use crate::components::calculation_display::CalculationDisplay;
-use crate::components::map_view::{MapView, PlacementMode, SelectedMarker};
+use crate::components::help_overlay::HelpOverlay;
+use crate::components::map_view::{MapView, PlacementMode, SelectedMarker, remove_marker};
 use crate::components::plan_panel::PlanPanel;
 use crate::components::weapon_selector::WeaponSelector;
 use crate::components::wind_input::WindInput;
 use crate::coords;
+
+// ---------------------------------------------------------------------------
+// Undo / redo infrastructure
+// ---------------------------------------------------------------------------
+
+const UNDO_LIMIT: usize = 50;
+
+#[derive(Clone, Debug)]
+pub struct PlanSnapshot {
+    pub gun_positions: Vec<(f64, f64)>,
+    pub target_positions: Vec<(f64, f64)>,
+    pub spotter_positions: Vec<(f64, f64)>,
+    pub gun_weapon_ids: Vec<String>,
+    pub gun_target_indices: Vec<Option<usize>>,
+    pub wind_direction: Option<f64>,
+    pub wind_strength: u32,
+}
+
+pub fn capture_snapshot(
+    gun_positions: &Signal<Vec<(f64, f64)>>,
+    target_positions: &Signal<Vec<(f64, f64)>>,
+    spotter_positions: &Signal<Vec<(f64, f64)>>,
+    gun_weapon_ids: &Signal<Vec<String>>,
+    gun_target_indices: &Signal<Vec<Option<usize>>>,
+    wind_direction: &Signal<Option<f64>>,
+    wind_strength: &Signal<u32>,
+) -> PlanSnapshot {
+    PlanSnapshot {
+        gun_positions: gun_positions.read().clone(),
+        target_positions: target_positions.read().clone(),
+        spotter_positions: spotter_positions.read().clone(),
+        gun_weapon_ids: gun_weapon_ids.read().clone(),
+        gun_target_indices: gun_target_indices.read().clone(),
+        wind_direction: *wind_direction.read(),
+        wind_strength: *wind_strength.read(),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn restore_snapshot(
+    snapshot: &PlanSnapshot,
+    gun_positions: &mut Signal<Vec<(f64, f64)>>,
+    target_positions: &mut Signal<Vec<(f64, f64)>>,
+    spotter_positions: &mut Signal<Vec<(f64, f64)>>,
+    gun_weapon_ids: &mut Signal<Vec<String>>,
+    gun_target_indices: &mut Signal<Vec<Option<usize>>>,
+    wind_direction: &mut Signal<Option<f64>>,
+    wind_strength: &mut Signal<u32>,
+) {
+    gun_positions.set(snapshot.gun_positions.clone());
+    target_positions.set(snapshot.target_positions.clone());
+    spotter_positions.set(snapshot.spotter_positions.clone());
+    gun_weapon_ids.set(snapshot.gun_weapon_ids.clone());
+    gun_target_indices.set(snapshot.gun_target_indices.clone());
+    wind_direction.set(snapshot.wind_direction);
+    wind_strength.set(snapshot.wind_strength);
+}
+
+pub fn push_undo(
+    undo_stack: &mut Signal<Vec<PlanSnapshot>>,
+    redo_stack: &mut Signal<Vec<PlanSnapshot>>,
+    snapshot: PlanSnapshot,
+) {
+    let mut stack = undo_stack.write();
+    stack.push(snapshot);
+    if stack.len() > UNDO_LIMIT {
+        stack.remove(0);
+    }
+    drop(stack);
+    redo_stack.write().clear();
+}
+
+// ---------------------------------------------------------------------------
+// DOM helpers
+// ---------------------------------------------------------------------------
+
+fn is_input_focused() -> bool {
+    let Some(window) = web_sys::window() else { return false };
+    let Some(doc) = window.document() else { return false };
+    let Some(active) = doc.active_element() else { return false };
+    let tag = active.tag_name().to_uppercase();
+    matches!(tag.as_str(), "INPUT" | "SELECT" | "TEXTAREA")
+}
 
 #[component]
 pub fn Planner(plan_id: Option<String>) -> Element {
@@ -29,6 +114,28 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     let mut plan_name = use_signal(|| "New Plan".to_string());
     let mut plan_url = use_signal(|| None::<String>);
     let mut firing_solutions = use_signal(Vec::<Option<FiringSolutionData>>::new);
+
+    // Undo / redo stacks
+    let mut undo_stack = use_signal(Vec::<PlanSnapshot>::new);
+    let mut redo_stack = use_signal(Vec::<PlanSnapshot>::new);
+
+    // Help overlay and view-reset signaling
+    let mut show_help = use_signal(|| false);
+    let mut reset_view_counter = use_signal(|| 0u64);
+
+    // Auto-focus .app div on mount so keyboard shortcuts work immediately
+    use_effect(|| {
+        use wasm_bindgen::JsCast;
+        if let Some(window) = web_sys::window() {
+            if let Some(doc) = window.document() {
+                if let Some(el) = doc.query_selector(".app").ok().flatten() {
+                    if let Some(html_el) = el.dyn_ref::<web_sys::HtmlElement>() {
+                        let _ = html_el.focus();
+                    }
+                }
+            }
+        }
+    });
 
     // Load plan if we have an ID
     let _plan_loader = use_resource(move || {
@@ -133,8 +240,129 @@ pub fn Planner(plan_id: Option<String>) -> Element {
         sol.as_ref().map(|s| coords::meters_to_image_px(s.accuracy_radius))
     }).collect();
 
+    // Closure to push undo snapshot from planner-level code
+    let mut push_snapshot = move || {
+        let snap = capture_snapshot(
+            &gun_positions, &target_positions, &spotter_positions,
+            &gun_weapon_ids, &gun_target_indices,
+            &wind_direction, &wind_strength,
+        );
+        push_undo(&mut undo_stack, &mut redo_stack, snap);
+    };
+
     rsx! {
-        div { class: "app",
+        div {
+            class: "app",
+            tabindex: "0",
+
+            onkeydown: move |evt: Event<KeyboardData>| {
+                let key = evt.key();
+                let mods = evt.data().modifiers();
+                let ctrl_or_cmd = mods.contains(Modifiers::CONTROL) || mods.contains(Modifiers::META);
+                let shift = mods.contains(Modifiers::SHIFT);
+
+                // Skip most shortcuts when typing in an input
+                if is_input_focused() {
+                    if key == Key::Escape {
+                        // Blur the focused element
+                        if let Some(w) = web_sys::window() {
+                            if let Some(doc) = w.document() {
+                                if let Some(active) = doc.active_element() {
+                                    use wasm_bindgen::JsCast;
+                                    if let Some(el) = active.dyn_ref::<web_sys::HtmlElement>() {
+                                        let _ = el.blur();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return;
+                }
+
+                match &key {
+                    // Undo: Ctrl+Z / Cmd+Z (without Shift)
+                    Key::Character(c) if c == "z" && ctrl_or_cmd && !shift => {
+                        evt.prevent_default();
+                        if let Some(snap) = undo_stack.write().pop() {
+                            let current = capture_snapshot(
+                                &gun_positions, &target_positions, &spotter_positions,
+                                &gun_weapon_ids, &gun_target_indices,
+                                &wind_direction, &wind_strength,
+                            );
+                            redo_stack.write().push(current);
+                            restore_snapshot(
+                                &snap,
+                                &mut gun_positions, &mut target_positions, &mut spotter_positions,
+                                &mut gun_weapon_ids, &mut gun_target_indices,
+                                &mut wind_direction, &mut wind_strength,
+                            );
+                            selected_marker.set(None);
+                        }
+                    }
+                    // Redo: Ctrl+Shift+Z / Cmd+Shift+Z
+                    Key::Character(c) if (c == "Z" || c == "z") && ctrl_or_cmd && shift => {
+                        evt.prevent_default();
+                        if let Some(snap) = redo_stack.write().pop() {
+                            let current = capture_snapshot(
+                                &gun_positions, &target_positions, &spotter_positions,
+                                &gun_weapon_ids, &gun_target_indices,
+                                &wind_direction, &wind_strength,
+                            );
+                            undo_stack.write().push(current);
+                            restore_snapshot(
+                                &snap,
+                                &mut gun_positions, &mut target_positions, &mut spotter_positions,
+                                &mut gun_weapon_ids, &mut gun_target_indices,
+                                &mut wind_direction, &mut wind_strength,
+                            );
+                            selected_marker.set(None);
+                        }
+                    }
+                    // Placement modes
+                    Key::Character(c) if c == "1" || c == "g" => {
+                        placement_mode.set(PlacementMode::Gun);
+                    }
+                    Key::Character(c) if c == "2" || c == "t" => {
+                        placement_mode.set(PlacementMode::Target);
+                    }
+                    Key::Character(c) if c == "3" || c == "s" => {
+                        placement_mode.set(PlacementMode::Spotter);
+                    }
+                    // Help overlay
+                    Key::Character(c) if c == "h" || c == "?" => {
+                        let current = *show_help.read();
+                        show_help.set(!current);
+                    }
+                    // Delete selected marker
+                    Key::Delete | Key::Backspace => {
+                        let cur_sel = *selected_marker.read();
+                        if let Some(sm) = cur_sel {
+                            push_snapshot();
+                            remove_marker(
+                                sm.kind, sm.index,
+                                &mut gun_positions, &mut target_positions, &mut spotter_positions,
+                                &mut gun_weapon_ids, &mut gun_target_indices,
+                            );
+                            selected_marker.set(None);
+                        }
+                    }
+                    // Reset zoom/pan
+                    Key::Character(c) if c == "r" => {
+                        let current = *reset_view_counter.read();
+                        reset_view_counter.set(current + 1);
+                    }
+                    // Escape: close help or deselect
+                    Key::Escape => {
+                        if *show_help.read() {
+                            show_help.set(false);
+                        } else {
+                            selected_marker.set(None);
+                        }
+                    }
+                    _ => {}
+                }
+            },
+
             // Header
             div { class: "header",
                 h1 { "Foxhole Artillery Planner" }
@@ -165,6 +393,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     select {
                         value: "{selected_map}",
                         onchange: move |evt: Event<FormData>| {
+                            push_snapshot();
                             selected_map.set(evt.value().to_string());
                             gun_positions.set(vec![]);
                             target_positions.set(vec![]);
@@ -191,6 +420,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                 WindInput {
                     wind_direction: wind_direction,
                     wind_strength: wind_strength,
+                    on_before_change: move |_| push_snapshot(),
                 }
 
                 CalculationDisplay {
@@ -202,6 +432,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     gun_target_indices: gun_target_indices,
                     weapons: weapons.clone(),
                     selected_marker: selected_marker,
+                    on_before_change: move |_| push_snapshot(),
                 }
 
                 PlanPanel {
@@ -250,6 +481,18 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     },
                 }
 
+                div { class: "panel",
+                    h3 { "Help & Info" }
+                    p { style: "font-size: 12px; color: var(--text-dim); margin-bottom: 8px;",
+                        "View keyboard shortcuts and learn how firing calculations work."
+                    }
+                    button {
+                        style: "width: 100%;",
+                        onclick: move |_| show_help.set(true),
+                        "Open Help"
+                    }
+                }
+
                 div { class: "panel about",
                     h3 { "About" }
                     p { "Foxhole Artillery Planner — a tool for planning artillery operations in Foxhole." }
@@ -289,8 +532,15 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     weapons: weapons.clone(),
                     accuracy_radii_px: accuracy_radii_px,
                     selected_marker: selected_marker,
+                    undo_stack: undo_stack,
+                    redo_stack: redo_stack,
+                    wind_direction: wind_direction,
+                    wind_strength: wind_strength,
+                    reset_view_counter: reset_view_counter,
                 }
             }
+
+            HelpOverlay { show: show_help }
         }
     }
 }

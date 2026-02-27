@@ -14,6 +14,7 @@ pub fn CalculationDisplay(
     gun_target_indices: Signal<Vec<Option<usize>>>,
     weapons: Vec<WeaponData>,
     selected_marker: Signal<Option<SelectedMarker>>,
+    on_before_change: EventHandler<()>,
 ) -> Element {
     let has_any_solution = solutions.iter().any(|s| s.is_some());
     let cur_selected = *selected_marker.read();
@@ -141,6 +142,7 @@ pub fn CalculationDisplay(
                                         onchange: {
                                             let idx = gun_idx;
                                             move |evt: Event<FormData>| {
+                                                on_before_change.call(());
                                                 let new_slug = evt.value().to_string();
                                                 if let Some(entry) = gun_weapon_ids.write().get_mut(idx) {
                                                     *entry = new_slug;
@@ -174,6 +176,7 @@ pub fn CalculationDisplay(
                                         onchange: {
                                             let idx = gun_idx;
                                             move |evt: Event<FormData>| {
+                                                on_before_change.call(());
                                                 let val = evt.value().to_string();
                                                 let new_target = if val.is_empty() {
                                                     None

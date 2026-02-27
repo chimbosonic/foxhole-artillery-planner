@@ -795,6 +795,99 @@ test.describe("Foxhole Artillery Planner", () => {
     expect(text).toMatch(/GUN: [A-Q]1[2-5]k\d/);
   });
 
+  test("keyboard shortcuts work on fresh page load without clicking", async ({ page }) => {
+    // Don't click anything — just press 't' directly after page load
+    await page.keyboard.press("t");
+
+    // Target button should be active
+    await expect(page.locator(".placement-mode button", { hasText: "Target" })).toHaveClass(/active-target/, { timeout: 2000 });
+  });
+
+  test("keyboard shortcut 'g' switches to gun mode after clicking map", async ({ page }) => {
+    // Switch to spotter mode (which doesn't auto-cycle on placement)
+    await page.locator(".placement-mode button", { hasText: "Spotter" }).click();
+    await expect(page.locator(".placement-mode button", { hasText: "Spotter" })).toHaveClass(/active-spotter/);
+
+    // Click on the map — simulates normal user workflow of placing a marker
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await mapContainer.click({ position: { x: box!.width / 2, y: box!.height / 2 } });
+
+    // Press 'g' to switch to gun mode
+    await page.keyboard.press("g");
+
+    // Gun button should be active
+    await expect(page.locator(".placement-mode button", { hasText: "Gun" })).toHaveClass(/active-gun/, { timeout: 2000 });
+  });
+
+  test("keyboard shortcut 't' switches to target mode after clicking map", async ({ page }) => {
+    // Start in spotter mode
+    await page.locator(".placement-mode button", { hasText: "Spotter" }).click();
+
+    // Click on the map
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await mapContainer.click({ position: { x: box!.width / 2, y: box!.height / 2 } });
+
+    // Press 't' to switch to target mode
+    await page.keyboard.press("t");
+
+    await expect(page.locator(".placement-mode button", { hasText: "Target" })).toHaveClass(/active-target/, { timeout: 2000 });
+  });
+
+  test("keyboard shortcut 's' switches to spotter mode after clicking map", async ({ page }) => {
+    // Default mode is Gun; clicking map places a gun and auto-cycles to Target
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await mapContainer.click({ position: { x: box!.width / 2, y: box!.height / 2 } });
+
+    // After placement, mode is Target (auto-cycled from Gun)
+    await expect(page.locator(".placement-mode button", { hasText: "Target" })).toHaveClass(/active-target/);
+
+    // Press 's' to switch to spotter mode
+    await page.keyboard.press("s");
+
+    await expect(page.locator(".placement-mode button", { hasText: "Spotter" })).toHaveClass(/active-spotter/, { timeout: 2000 });
+  });
+
+  test("keyboard shortcut 'r' resets zoom after clicking map", async ({ page }) => {
+    const mapContainer = page.locator(".map-container");
+    const mapInner = page.locator(".map-inner");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+
+    // Zoom in with scroll wheel
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.wheel(0, -300);
+    await page.waitForTimeout(200);
+
+    // Verify zoomed in (scale > 1)
+    const zoomedTransform = await mapInner.evaluate(
+      (el) => getComputedStyle(el).transform,
+    );
+    expect(zoomedTransform).not.toBe("none");
+    // Parse matrix(a, ...) — a is the X scale
+    const zoomedScale = parseFloat(zoomedTransform.split("(")[1]);
+    expect(zoomedScale).toBeGreaterThan(1);
+
+    // Click on the map to simulate user interaction (loses focus to non-focusable area)
+    await mapContainer.click({ position: { x: box!.width / 2, y: box!.height / 2 } });
+
+    // Press 'r' to reset zoom
+    await page.keyboard.press("r");
+    await page.waitForTimeout(200);
+
+    // Verify zoom is back to 1.0
+    const resetTransform = await mapInner.evaluate(
+      (el) => getComputedStyle(el).transform,
+    );
+    const resetScale = parseFloat(resetTransform.split("(")[1]);
+    expect(resetScale).toBeCloseTo(1.0, 1);
+  });
+
   test("changing map resets placed markers", async ({ page }) => {
     const mapContainer = page.locator(".map-container");
     const box = await mapContainer.boundingBox();

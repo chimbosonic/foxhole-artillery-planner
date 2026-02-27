@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 pub fn WindInput(
     wind_direction: Signal<Option<f64>>,
     wind_strength: Signal<u32>,
+    on_before_change: EventHandler<()>,
 ) -> Element {
     // Grid layout: NW N NE / W . E / SW S SE
     let grid_order: [(f64, &str); 8] = [
@@ -30,6 +31,7 @@ pub fn WindInput(
                     button {
                         class: if current_dir == Some(deg) { "active" } else { "" },
                         onclick: move |_| {
+                            on_before_change.call(());
                             if current_dir == Some(deg) {
                                 wind_direction.set(None);
                             } else {
@@ -43,6 +45,7 @@ pub fn WindInput(
                 button {
                     class: if current_dir == Some(grid_order[3].0) { "active" } else { "" },
                     onclick: move |_| {
+                        on_before_change.call(());
                         let deg = 270.0;
                         if current_dir == Some(deg) {
                             wind_direction.set(None);
@@ -56,6 +59,7 @@ pub fn WindInput(
                 button {
                     class: if current_dir == Some(grid_order[4].0) { "active" } else { "" },
                     onclick: move |_| {
+                        on_before_change.call(());
                         let deg = 90.0;
                         if current_dir == Some(deg) {
                             wind_direction.set(None);
@@ -70,6 +74,7 @@ pub fn WindInput(
                     button {
                         class: if current_dir == Some(deg) { "active" } else { "" },
                         onclick: move |_| {
+                            on_before_change.call(());
                             if current_dir == Some(deg) {
                                 wind_direction.set(None);
                             } else {
@@ -89,6 +94,7 @@ pub fn WindInput(
                     value: "{current_str}",
                     onchange: move |evt: Event<FormData>| {
                         if let Ok(v) = evt.value().parse::<u32>() {
+                            on_before_change.call(());
                             wind_strength.set(v);
                         }
                     },

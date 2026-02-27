@@ -495,3 +495,135 @@ button.secondary {
     font-size: 18px;
     color: var(--text-dim);
 }
+
+/* --- App focus (keyboard shortcuts) --- */
+
+.app:focus {
+    outline: none;
+}
+
+/* --- Help button in header --- */
+
+.help-btn {
+    background: var(--bg-input);
+    font-size: 12px;
+    padding: 4px 10px;
+    margin-left: auto;
+}
+
+/* --- Help overlay --- */
+
+.help-overlay-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.help-overlay {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 32px;
+    max-width: 420px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.help-overlay h2 {
+    font-size: 18px;
+    color: var(--accent);
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.shortcut-section {
+    margin-bottom: 16px;
+}
+
+.shortcut-section h3 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+}
+
+.shortcut-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+.shortcut-keys {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    font-family: monospace;
+    font-size: 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    min-width: 24px;
+    text-align: center;
+}
+
+.close-help {
+    display: block;
+    margin: 16px auto 0;
+    padding: 8px 24px;
+}
+
+.help-divider {
+    border-top: 1px solid var(--border);
+    margin: 16px 0;
+}
+
+.help-section-title {
+    font-size: 18px;
+    color: var(--accent-blue);
+    margin-bottom: 12px;
+    text-align: center;
+}
+
+.help-info-section {
+    margin-bottom: 12px;
+}
+
+.help-info-section h3 {
+    font-size: 13px;
+    color: var(--accent-green);
+    margin-bottom: 4px;
+}
+
+.help-info-section p {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+}
+
+.in-range-text {
+    color: var(--accent-green);
+    font-weight: 600;
+}
+
+.out-of-range-text {
+    color: var(--accent);
+    font-weight: 600;
+}
