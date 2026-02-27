@@ -33,22 +33,23 @@ pub fn build_create_plan_variables(
     name: &str,
     map_id: &str,
     weapon_id: &str,
-    gun_x: Option<f64>,
-    gun_y: Option<f64>,
-    target_x: Option<f64>,
-    target_y: Option<f64>,
+    gun_positions: &[(f64, f64)],
+    target_positions: &[(f64, f64)],
+    spotter_positions: &[(f64, f64)],
     wind_direction: Option<f64>,
     wind_strength: Option<u32>,
 ) -> serde_json::Value {
+    let to_json = |positions: &[(f64, f64)]| -> serde_json::Value {
+        positions.iter().map(|(x, y)| serde_json::json!({"x": x, "y": y})).collect()
+    };
     serde_json::json!({
         "input": {
             "name": name,
             "mapId": map_id,
             "weaponId": weapon_id,
-            "gunX": gun_x,
-            "gunY": gun_y,
-            "targetX": target_x,
-            "targetY": target_y,
+            "gunPositions": to_json(gun_positions),
+            "targetPositions": to_json(target_positions),
+            "spotterPositions": to_json(spotter_positions),
             "windDirection": wind_direction,
             "windStrength": wind_strength
         }
@@ -146,6 +147,13 @@ pub struct FiringSolutionData {
     pub wind_offset_meters: Option<f64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PositionData {
+    pub x: f64,
+    pub y: f64,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlanData {
@@ -153,12 +161,9 @@ pub struct PlanData {
     pub name: String,
     pub map_id: String,
     pub weapon_id: String,
-    pub gun_x: Option<f64>,
-    pub gun_y: Option<f64>,
-    pub target_x: Option<f64>,
-    pub target_y: Option<f64>,
-    pub spotter_x: Option<f64>,
-    pub spotter_y: Option<f64>,
+    pub gun_positions: Vec<PositionData>,
+    pub target_positions: Vec<PositionData>,
+    pub spotter_positions: Vec<PositionData>,
     pub wind_direction: Option<f64>,
     pub wind_strength: u32,
 }
@@ -235,21 +240,21 @@ pub async fn create_plan(
     name: &str,
     map_id: &str,
     weapon_id: &str,
-    gun_x: Option<f64>,
-    gun_y: Option<f64>,
-    target_x: Option<f64>,
-    target_y: Option<f64>,
+    gun_positions: &[(f64, f64)],
+    target_positions: &[(f64, f64)],
+    spotter_positions: &[(f64, f64)],
     wind_direction: Option<f64>,
     wind_strength: Option<u32>,
 ) -> Result<PlanData, String> {
     let variables = build_create_plan_variables(
-        name, map_id, weapon_id, gun_x, gun_y, target_x, target_y, wind_direction, wind_strength,
+        name, map_id, weapon_id, gun_positions, target_positions, spotter_positions, wind_direction, wind_strength,
     );
 
     let resp: CreatePlanResponse = query(
         r#"mutation CreatePlan($input: CreatePlanInput!) {
             createPlan(input: $input) {
-                id name mapId weaponId gunX gunY targetX targetY
+                id name mapId weaponId
+                gunPositions { x y } targetPositions { x y } spotterPositions { x y }
                 windDirection windStrength
             }
         }"#,
@@ -270,8 +275,9 @@ pub async fn fetch_plan(id: &str) -> Result<Option<PlanData>, String> {
     let resp: FetchPlanResponse = query(
         r#"query FetchPlan($id: ID!) {
             plan(id: $id) {
-                id name mapId weaponId gunX gunY targetX targetY
-                spotterX spotterY windDirection windStrength
+                id name mapId weaponId
+                gunPositions { x y } targetPositions { x y } spotterPositions { x y }
+                windDirection windStrength
             }
         }"#,
         Some(variables),
@@ -347,12 +353,13 @@ mod tests {
 
     #[test]
     fn test_plan_data_deserializes() {
-        let json = r#"{"plan":{"id":"abc-123","name":"Test Plan","mapId":"deadlands","weaponId":"storm-cannon","gunX":100.0,"gunY":200.0,"targetX":300.0,"targetY":400.0,"spotterX":null,"spotterY":null,"windDirection":90.0,"windStrength":3}}"#;
+        let json = r#"{"plan":{"id":"abc-123","name":"Test Plan","mapId":"deadlands","weaponId":"storm-cannon","gunPositions":[{"x":100.0,"y":200.0}],"targetPositions":[{"x":300.0,"y":400.0}],"spotterPositions":[],"windDirection":90.0,"windStrength":3}}"#;
         let resp: FetchPlanResponse = serde_json::from_str(json).unwrap();
         let plan = resp.plan.unwrap();
         assert_eq!(plan.id, "abc-123");
-        assert_eq!(plan.gun_x, Some(100.0));
-        assert!(plan.spotter_x.is_none());
+        assert_eq!(plan.gun_positions.len(), 1);
+        assert_eq!(plan.gun_positions[0].x, 100.0);
+        assert!(plan.spotter_positions.is_empty());
         assert_eq!(plan.wind_strength, 3);
     }
 
@@ -400,23 +407,26 @@ mod tests {
     fn test_build_create_plan_variables() {
         let vars = build_create_plan_variables(
             "My Plan", "deadlands", "storm-cannon",
-            Some(10.0), Some(20.0), Some(30.0), Some(40.0),
+            &[(10.0, 20.0)], &[(30.0, 40.0)], &[],
             Some(180.0), Some(2),
         );
         assert_eq!(vars["input"]["name"], "My Plan");
         assert_eq!(vars["input"]["mapId"], "deadlands");
-        assert_eq!(vars["input"]["gunX"], 10.0);
+        assert_eq!(vars["input"]["gunPositions"][0]["x"], 10.0);
+        assert_eq!(vars["input"]["gunPositions"][0]["y"], 20.0);
+        assert_eq!(vars["input"]["targetPositions"][0]["x"], 30.0);
         assert_eq!(vars["input"]["windStrength"], 2);
     }
 
     #[test]
-    fn test_build_create_plan_variables_nulls() {
+    fn test_build_create_plan_variables_empty() {
         let vars = build_create_plan_variables(
             "Empty Plan", "deadlands", "mortar",
-            None, None, None, None, None, None,
+            &[], &[], &[],
+            None, None,
         );
-        assert!(vars["input"]["gunX"].is_null());
-        assert!(vars["input"]["targetX"].is_null());
+        assert_eq!(vars["input"]["gunPositions"].as_array().unwrap().len(), 0);
+        assert_eq!(vars["input"]["targetPositions"].as_array().unwrap().len(), 0);
         assert!(vars["input"]["windDirection"].is_null());
     }
 

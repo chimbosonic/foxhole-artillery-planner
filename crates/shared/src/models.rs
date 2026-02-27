@@ -68,13 +68,47 @@ pub struct Plan {
     pub name: String,
     pub map_id: String,
     pub weapon_id: String,
+    /// Legacy single-position field for backwards-compatible deserialization.
+    #[serde(default, skip_serializing)]
     pub gun_position: Option<Position>,
+    #[serde(default, skip_serializing)]
     pub target_position: Option<Position>,
+    #[serde(default, skip_serializing)]
     pub spotter_position: Option<Position>,
+    /// Multi-position fields (new canonical format).
+    #[serde(default)]
+    pub gun_positions: Vec<Position>,
+    #[serde(default)]
+    pub target_positions: Vec<Position>,
+    #[serde(default)]
+    pub spotter_positions: Vec<Position>,
     pub wind_direction: Option<f64>,
     pub wind_strength: u8,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[cfg(feature = "uuid-support")]
+impl Plan {
+    /// Promote legacy single-position fields into the Vec fields if the Vecs
+    /// are empty. Call this after deserializing old plans.
+    pub fn migrate(&mut self) {
+        if self.gun_positions.is_empty() {
+            if let Some(pos) = self.gun_position.take() {
+                self.gun_positions.push(pos);
+            }
+        }
+        if self.target_positions.is_empty() {
+            if let Some(pos) = self.target_position.take() {
+                self.target_positions.push(pos);
+            }
+        }
+        if self.spotter_positions.is_empty() {
+            if let Some(pos) = self.spotter_position.take() {
+                self.spotter_positions.push(pos);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

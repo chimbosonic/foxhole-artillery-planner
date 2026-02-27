@@ -18,14 +18,14 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     let mut selected_map = use_signal(String::new);
     let mut selected_weapon = use_signal(String::new);
     let mut placement_mode = use_signal(|| PlacementMode::Gun);
-    let mut gun_pos = use_signal(|| None::<(f64, f64)>);
-    let mut target_pos = use_signal(|| None::<(f64, f64)>);
-    let mut spotter_pos = use_signal(|| None::<(f64, f64)>);
+    let mut gun_positions = use_signal(Vec::<(f64, f64)>::new);
+    let mut target_positions = use_signal(Vec::<(f64, f64)>::new);
+    let mut spotter_positions = use_signal(Vec::<(f64, f64)>::new);
     let mut wind_direction = use_signal(|| None::<f64>);
     let mut wind_strength = use_signal(|| 0u32);
     let mut plan_name = use_signal(|| "New Plan".to_string());
     let mut plan_url = use_signal(|| None::<String>);
-    let mut firing_solution = use_signal(|| None::<FiringSolutionData>);
+    let mut firing_solutions = use_signal(Vec::<Option<FiringSolutionData>>::new);
 
     // Load plan if we have an ID
     let _plan_loader = use_resource(move || {
@@ -37,18 +37,15 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     selected_weapon.set(plan.weapon_id);
                     plan_name.set(plan.name);
                     // Plan stores meter coordinates, convert to image pixels
-                    if let (Some(mx), Some(my)) = (plan.gun_x, plan.gun_y) {
-                        let (px, py) = coords::meters_to_map_px(mx, my);
-                        gun_pos.set(Some((px, py)));
-                    }
-                    if let (Some(mx), Some(my)) = (plan.target_x, plan.target_y) {
-                        let (px, py) = coords::meters_to_map_px(mx, my);
-                        target_pos.set(Some((px, py)));
-                    }
-                    if let (Some(mx), Some(my)) = (plan.spotter_x, plan.spotter_y) {
-                        let (px, py) = coords::meters_to_map_px(mx, my);
-                        spotter_pos.set(Some((px, py)));
-                    }
+                    gun_positions.set(
+                        plan.gun_positions.iter().map(|p| coords::meters_to_map_px(p.x, p.y)).collect()
+                    );
+                    target_positions.set(
+                        plan.target_positions.iter().map(|p| coords::meters_to_map_px(p.x, p.y)).collect()
+                    );
+                    spotter_positions.set(
+                        plan.spotter_positions.iter().map(|p| coords::meters_to_map_px(p.x, p.y)).collect()
+                    );
                     if let Some(dir) = plan.wind_direction {
                         wind_direction.set(Some(dir));
                     }
@@ -61,23 +58,26 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     // Auto-calculate when inputs change — convert pixel positions to meters for the API
     let _calc_effect = use_resource(move || {
         let weapon = selected_weapon.read().clone();
-        let gun = *gun_pos.read();
-        let target = *target_pos.read();
+        let guns = gun_positions.read().clone();
+        let targets = target_positions.read().clone();
         let w_dir = *wind_direction.read();
         let w_str = *wind_strength.read();
         async move {
-            if let (Some(g_px), Some(t_px)) = (gun, target) {
-                if !weapon.is_empty() {
-                    let (gx, gy) = coords::map_px_to_meters(g_px.0, g_px.1);
-                    let (tx, ty) = coords::map_px_to_meters(t_px.0, t_px.1);
-                    match api::calculate(gx, gy, tx, ty, &weapon, w_dir, Some(w_str)).await {
-                        Ok(sol) => firing_solution.set(Some(sol)),
-                        Err(_) => firing_solution.set(None),
-                    }
-                }
-            } else {
-                firing_solution.set(None);
+            if weapon.is_empty() || guns.is_empty() || targets.is_empty() {
+                firing_solutions.set(vec![]);
+                return;
             }
+            let pairs: Vec<_> = guns.iter().zip(targets.iter()).collect();
+            let mut results = Vec::with_capacity(pairs.len());
+            for (g_px, t_px) in &pairs {
+                let (gx, gy) = coords::map_px_to_meters(g_px.0, g_px.1);
+                let (tx, ty) = coords::map_px_to_meters(t_px.0, t_px.1);
+                match api::calculate(gx, gy, tx, ty, &weapon, w_dir, Some(w_str)).await {
+                    Ok(sol) => results.push(Some(sol)),
+                    Err(_) => results.push(None),
+                }
+            }
+            firing_solutions.set(results);
         }
     });
 
@@ -102,10 +102,10 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     // Find the currently selected weapon data for range visualization
     let current_weapon_data = weapons.iter().find(|w| w.slug == current_weapon_slug).cloned();
 
-    // Compute accuracy radius in image pixels for the map overlay
-    let accuracy_radius_px = firing_solution.read().as_ref().map(|sol| {
-        coords::meters_to_image_px(sol.accuracy_radius)
-    });
+    // Compute accuracy radii in image pixels for the map overlay (one per pair)
+    let accuracy_radii_px: Vec<Option<f64>> = firing_solutions.read().iter().map(|sol| {
+        sol.as_ref().map(|s| coords::meters_to_image_px(s.accuracy_radius))
+    }).collect();
 
     rsx! {
         div { class: "app",
@@ -140,9 +140,9 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                         value: "{selected_map}",
                         onchange: move |evt: Event<FormData>| {
                             selected_map.set(evt.value().to_string());
-                            gun_pos.set(None);
-                            target_pos.set(None);
-                            spotter_pos.set(None);
+                            gun_positions.set(vec![]);
+                            target_positions.set(vec![]);
+                            spotter_positions.set(vec![]);
                         },
                         for m in &maps {
                             option {
@@ -165,10 +165,10 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                 }
 
                 CalculationDisplay {
-                    solution: firing_solution.read().clone(),
-                    gun_pos: *gun_pos.read(),
-                    target_pos: *target_pos.read(),
-                    spotter_pos: *spotter_pos.read(),
+                    solutions: firing_solutions.read().clone(),
+                    gun_positions: gun_positions.read().clone(),
+                    target_positions: target_positions.read().clone(),
+                    spotter_positions: spotter_positions.read().clone(),
                 }
 
                 PlanPanel {
@@ -178,29 +178,25 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                         let map = selected_map.read().clone();
                         let weapon = selected_weapon.read().clone();
                         let name = plan_name.read().clone();
-                        let gun = *gun_pos.read();
-                        let target = *target_pos.read();
+                        let guns = gun_positions.read().clone();
+                        let targets = target_positions.read().clone();
+                        let spotters = spotter_positions.read().clone();
                         let w_dir = *wind_direction.read();
                         let w_str = *wind_strength.read();
                         spawn(async move {
                             // Convert pixel positions to meters for storage
-                            let (gun_mx, gun_my) = match gun {
-                                Some(g) => {
-                                    let (mx, my) = coords::map_px_to_meters(g.0, g.1);
-                                    (Some(mx), Some(my))
-                                }
-                                None => (None, None),
-                            };
-                            let (tgt_mx, tgt_my) = match target {
-                                Some(t) => {
-                                    let (mx, my) = coords::map_px_to_meters(t.0, t.1);
-                                    (Some(mx), Some(my))
-                                }
-                                None => (None, None),
-                            };
+                            let gun_m: Vec<(f64, f64)> = guns.iter()
+                                .map(|g| coords::map_px_to_meters(g.0, g.1))
+                                .collect();
+                            let tgt_m: Vec<(f64, f64)> = targets.iter()
+                                .map(|t| coords::map_px_to_meters(t.0, t.1))
+                                .collect();
+                            let spt_m: Vec<(f64, f64)> = spotters.iter()
+                                .map(|s| coords::map_px_to_meters(s.0, s.1))
+                                .collect();
                             match api::create_plan(
                                 &name, &map, &weapon,
-                                gun_mx, gun_my, tgt_mx, tgt_my,
+                                &gun_m, &tgt_m, &spt_m,
                                 w_dir, Some(w_str),
                             ).await {
                                 Ok(plan) => {
@@ -226,11 +222,11 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     key: "{current_map}",
                     map_file_name: current_map,
                     placement_mode: placement_mode,
-                    gun_pos: gun_pos,
-                    target_pos: target_pos,
-                    spotter_pos: spotter_pos,
+                    gun_positions: gun_positions,
+                    target_positions: target_positions,
+                    spotter_positions: spotter_positions,
                     selected_weapon: current_weapon_data,
-                    accuracy_radius_px: accuracy_radius_px,
+                    accuracy_radii_px: accuracy_radii_px,
                 }
             }
         }

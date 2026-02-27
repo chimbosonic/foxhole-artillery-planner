@@ -69,18 +69,21 @@ pub struct GqlFiringSolution {
     pub wind_offset_meters: Option<f64>,
 }
 
+#[derive(SimpleObject, Clone)]
+pub struct GqlPosition {
+    pub x: f64,
+    pub y: f64,
+}
+
 #[derive(SimpleObject)]
 pub struct GqlPlan {
     pub id: ID,
     pub name: String,
     pub map_id: String,
     pub weapon_id: String,
-    pub gun_x: Option<f64>,
-    pub gun_y: Option<f64>,
-    pub target_x: Option<f64>,
-    pub target_y: Option<f64>,
-    pub spotter_x: Option<f64>,
-    pub spotter_y: Option<f64>,
+    pub gun_positions: Vec<GqlPosition>,
+    pub target_positions: Vec<GqlPosition>,
+    pub spotter_positions: Vec<GqlPosition>,
     pub wind_direction: Option<f64>,
     pub wind_strength: u32,
     pub created_at: String,
@@ -94,12 +97,9 @@ impl From<models::Plan> for GqlPlan {
             name: p.name,
             map_id: p.map_id,
             weapon_id: p.weapon_id,
-            gun_x: p.gun_position.map(|pos| pos.x),
-            gun_y: p.gun_position.map(|pos| pos.y),
-            target_x: p.target_position.map(|pos| pos.x),
-            target_y: p.target_position.map(|pos| pos.y),
-            spotter_x: p.spotter_position.map(|pos| pos.x),
-            spotter_y: p.spotter_position.map(|pos| pos.y),
+            gun_positions: p.gun_positions.into_iter().map(|pos| GqlPosition { x: pos.x, y: pos.y }).collect(),
+            target_positions: p.target_positions.into_iter().map(|pos| GqlPosition { x: pos.x, y: pos.y }).collect(),
+            spotter_positions: p.spotter_positions.into_iter().map(|pos| GqlPosition { x: pos.x, y: pos.y }).collect(),
             wind_direction: p.wind_direction,
             wind_strength: p.wind_strength as u32,
             created_at: p.created_at,
@@ -135,12 +135,9 @@ pub struct CreatePlanInput {
     pub name: String,
     pub map_id: String,
     pub weapon_id: String,
-    pub gun_x: Option<f64>,
-    pub gun_y: Option<f64>,
-    pub target_x: Option<f64>,
-    pub target_y: Option<f64>,
-    pub spotter_x: Option<f64>,
-    pub spotter_y: Option<f64>,
+    pub gun_positions: Option<Vec<PositionInput>>,
+    pub target_positions: Option<Vec<PositionInput>>,
+    pub spotter_positions: Option<Vec<PositionInput>>,
     pub wind_direction: Option<f64>,
     pub wind_strength: Option<u32>,
 }
@@ -151,12 +148,9 @@ pub struct UpdatePlanInput {
     pub name: Option<String>,
     pub map_id: Option<String>,
     pub weapon_id: Option<String>,
-    pub gun_x: Option<f64>,
-    pub gun_y: Option<f64>,
-    pub target_x: Option<f64>,
-    pub target_y: Option<f64>,
-    pub spotter_x: Option<f64>,
-    pub spotter_y: Option<f64>,
+    pub gun_positions: Option<Vec<PositionInput>>,
+    pub target_positions: Option<Vec<PositionInput>>,
+    pub spotter_positions: Option<Vec<PositionInput>>,
     pub wind_direction: Option<f64>,
     pub wind_strength: Option<u32>,
 }
@@ -283,23 +277,21 @@ impl MutationRoot {
         let storage = ctx.data::<Arc<Storage>>().unwrap();
         let now = chrono::Utc::now().to_rfc3339();
 
+        let to_positions = |v: Option<Vec<PositionInput>>| -> Vec<Position> {
+            v.unwrap_or_default().into_iter().map(|p| Position { x: p.x, y: p.y }).collect()
+        };
+
         let plan = models::Plan {
             id: uuid::Uuid::new_v4(),
             name: input.name,
             map_id: input.map_id,
             weapon_id: input.weapon_id,
-            gun_position: match (input.gun_x, input.gun_y) {
-                (Some(x), Some(y)) => Some(Position { x, y }),
-                _ => None,
-            },
-            target_position: match (input.target_x, input.target_y) {
-                (Some(x), Some(y)) => Some(Position { x, y }),
-                _ => None,
-            },
-            spotter_position: match (input.spotter_x, input.spotter_y) {
-                (Some(x), Some(y)) => Some(Position { x, y }),
-                _ => None,
-            },
+            gun_position: None,
+            target_position: None,
+            spotter_position: None,
+            gun_positions: to_positions(input.gun_positions),
+            target_positions: to_positions(input.target_positions),
+            spotter_positions: to_positions(input.spotter_positions),
             wind_direction: input.wind_direction,
             wind_strength: input.wind_strength.unwrap_or(0) as u8,
             created_at: now.clone(),
@@ -334,23 +326,14 @@ impl MutationRoot {
         if let Some(weapon_id) = input.weapon_id {
             plan.weapon_id = weapon_id;
         }
-        if input.gun_x.is_some() || input.gun_y.is_some() {
-            plan.gun_position = match (input.gun_x, input.gun_y) {
-                (Some(x), Some(y)) => Some(Position { x, y }),
-                _ => plan.gun_position,
-            };
+        if let Some(positions) = input.gun_positions {
+            plan.gun_positions = positions.into_iter().map(|p| Position { x: p.x, y: p.y }).collect();
         }
-        if input.target_x.is_some() || input.target_y.is_some() {
-            plan.target_position = match (input.target_x, input.target_y) {
-                (Some(x), Some(y)) => Some(Position { x, y }),
-                _ => plan.target_position,
-            };
+        if let Some(positions) = input.target_positions {
+            plan.target_positions = positions.into_iter().map(|p| Position { x: p.x, y: p.y }).collect();
         }
-        if input.spotter_x.is_some() || input.spotter_y.is_some() {
-            plan.spotter_position = match (input.spotter_x, input.spotter_y) {
-                (Some(x), Some(y)) => Some(Position { x, y }),
-                _ => plan.spotter_position,
-            };
+        if let Some(positions) = input.spotter_positions {
+            plan.spotter_positions = positions.into_iter().map(|p| Position { x: p.x, y: p.y }).collect();
         }
         if let Some(dir) = input.wind_direction {
             plan.wind_direction = Some(dir);

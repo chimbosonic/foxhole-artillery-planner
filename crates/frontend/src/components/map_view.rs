@@ -1,4 +1,5 @@
 use dioxus::html::geometry::WheelDelta;
+use dioxus::html::input_data::MouseButton;
 use dioxus::prelude::*;
 use foxhole_shared::grid;
 
@@ -13,6 +14,9 @@ const DRAG_THRESHOLD: f64 = 3.0;
 const ZOOM_MIN: f64 = 1.0;
 const ZOOM_MAX: f64 = 10.0;
 const ZOOM_STEP: f64 = 1.1;
+
+/// Distance threshold (in map-image pixels, before zoom) for right-click removal.
+const REMOVE_THRESHOLD: f64 = 30.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlacementMode {
@@ -85,17 +89,44 @@ fn wheel_delta_y(delta: WheelDelta) -> f64 {
 }
 
 // ---------------------------------------------------------------------------
+// Marker removal helper
+// ---------------------------------------------------------------------------
+
+/// Euclidean distance between two points.
+fn dist(a: &(f64, f64), b: (f64, f64)) -> f64 {
+    let dx = a.0 - b.0;
+    let dy = a.1 - b.1;
+    (dx * dx + dy * dy).sqrt()
+}
+
+/// Find the index of the nearest position within `threshold` (Euclidean distance).
+fn find_nearest(positions: &[(f64, f64)], click: (f64, f64), threshold: f64) -> Option<usize> {
+    let mut best_idx = None;
+    let mut best_dist = threshold;
+    for (i, pos) in positions.iter().enumerate() {
+        let dx = pos.0 - click.0;
+        let dy = pos.1 - click.1;
+        let dist = (dx * dx + dy * dy).sqrt();
+        if dist < best_dist {
+            best_dist = dist;
+            best_idx = Some(i);
+        }
+    }
+    best_idx
+}
+
+// ---------------------------------------------------------------------------
 // SVG builder
 // ---------------------------------------------------------------------------
 
 /// Build the full SVG content as a string for reliable rendering.
 /// Positions are in native map-image pixel space (1024×888).
 fn build_svg_content(
-    gun: Option<(f64, f64)>,
-    target: Option<(f64, f64)>,
-    spotter: Option<(f64, f64)>,
+    guns: &[(f64, f64)],
+    targets: &[(f64, f64)],
+    spotters: &[(f64, f64)],
     weapon: &Option<WeaponData>,
-    accuracy_radius_px: Option<f64>,
+    accuracy_radii_px: &[Option<f64>],
     zoom: f64,
 ) -> String {
     let mut svg = String::with_capacity(8192);
@@ -106,12 +137,12 @@ fn build_svg_content(
         build_keypad_lines(&mut svg);
         build_keypad_labels(&mut svg);
     }
-    build_range_circles(&mut svg, gun, weapon, zoom);
-    build_firing_line(&mut svg, gun, target, zoom);
-    build_accuracy_circle(&mut svg, target, accuracy_radius_px, zoom);
-    build_gun_marker(&mut svg, gun, zoom);
-    build_target_marker(&mut svg, target, zoom);
-    build_spotter_marker(&mut svg, spotter, zoom);
+    build_range_circles(&mut svg, guns, weapon, zoom);
+    build_firing_lines(&mut svg, guns, targets, zoom);
+    build_accuracy_circles(&mut svg, targets, accuracy_radii_px, zoom);
+    build_gun_markers(&mut svg, guns, zoom);
+    build_target_markers(&mut svg, targets, zoom);
+    build_spotter_markers(&mut svg, spotters, zoom);
 
     svg
 }
@@ -208,11 +239,13 @@ fn build_keypad_labels(svg: &mut String) {
 
 fn build_range_circles(
     svg: &mut String,
-    gun: Option<(f64, f64)>,
+    guns: &[(f64, f64)],
     weapon: &Option<WeaponData>,
     zoom: f64,
 ) {
-    if let (Some((gx, gy)), Some(w)) = (gun, weapon) {
+    let Some(w) = weapon else { return };
+    let num_paired = guns.len(); // range circles shown for all guns
+    for &(gx, gy) in &guns[..num_paired] {
         let s = 1.0 / zoom.min(5.0);
         let max_r = coords::meters_to_image_px(w.max_range);
         let sw1 = 1.5 * s;
@@ -229,13 +262,13 @@ fn build_range_circles(
     }
 }
 
-fn build_firing_line(
+fn build_firing_lines(
     svg: &mut String,
-    gun: Option<(f64, f64)>,
-    target: Option<(f64, f64)>,
+    guns: &[(f64, f64)],
+    targets: &[(f64, f64)],
     zoom: f64,
 ) {
-    if let (Some((gx, gy)), Some((tx, ty))) = (gun, target) {
+    for ((gx, gy), (tx, ty)) in guns.iter().zip(targets.iter()) {
         let s = 1.0 / zoom.min(5.0);
         let sw = 1.5 * s;
         let da1 = 6.0 * s;
@@ -246,42 +279,56 @@ fn build_firing_line(
     }
 }
 
-fn build_accuracy_circle(
+fn build_accuracy_circles(
     svg: &mut String,
-    target: Option<(f64, f64)>,
-    accuracy_radius_px: Option<f64>,
+    targets: &[(f64, f64)],
+    accuracy_radii_px: &[Option<f64>],
     zoom: f64,
 ) {
-    if let (Some((tx, ty)), Some(acc_r)) = (target, accuracy_radius_px) {
-        let s = 1.0 / zoom.min(5.0);
-        let sw = 1.0 * s;
-        let da1 = 3.0 * s;
-        let da2 = 2.0 * s;
-        svg.push_str(&format!(
-            r##"<circle cx="{tx}" cy="{ty}" r="{acc_r}" fill="rgba(233,69,96,0.15)" stroke="#e94560" stroke-width="{sw}" stroke-dasharray="{da1} {da2}"/>"##
-        ));
+    for ((tx, ty), acc_r) in targets.iter().zip(accuracy_radii_px.iter()) {
+        if let Some(acc_r) = acc_r {
+            let s = 1.0 / zoom.min(5.0);
+            let sw = 1.0 * s;
+            let da1 = 3.0 * s;
+            let da2 = 2.0 * s;
+            svg.push_str(&format!(
+                r##"<circle cx="{tx}" cy="{ty}" r="{acc_r}" fill="rgba(233,69,96,0.15)" stroke="#e94560" stroke-width="{sw}" stroke-dasharray="{da1} {da2}"/>"##
+            ));
+        }
     }
 }
 
-fn build_gun_marker(svg: &mut String, gun: Option<(f64, f64)>, zoom: f64) {
-    if let Some((gx, gy)) = gun {
+/// Generate marker label: no number suffix for single markers, numbered for multiple.
+fn marker_label(base: &str, index: usize, total: usize) -> String {
+    if total <= 1 {
+        base.to_string()
+    } else {
+        format!("{} {}", base, index + 1)
+    }
+}
+
+fn build_gun_markers(svg: &mut String, guns: &[(f64, f64)], zoom: f64) {
+    let total = guns.len();
+    for (i, &(gx, gy)) in guns.iter().enumerate() {
         let s = 1.0 / zoom.min(5.0);
         let r = 6.0 * s;
         let sw = 1.5 * s;
         let fs = 8.0 * s;
         let ty = gy - 10.0 * s;
         let tsw = 2.0 * s;
+        let label = marker_label("GUN", i, total);
         svg.push_str(&format!(
             r##"<circle cx="{gx}" cy="{gy}" r="{r}" fill="#4ecca3" stroke="white" stroke-width="{sw}"/>"##
         ));
         svg.push_str(&format!(
-            r##"<text x="{gx}" y="{ty}" fill="white" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">GUN</text>"##
+            r##"<text x="{gx}" y="{ty}" fill="white" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
         ));
     }
 }
 
-fn build_target_marker(svg: &mut String, target: Option<(f64, f64)>, zoom: f64) {
-    if let Some((tx, ty)) = target {
+fn build_target_markers(svg: &mut String, targets: &[(f64, f64)], zoom: f64) {
+    let total = targets.len();
+    for (i, &(tx, ty)) in targets.iter().enumerate() {
         let s = 1.0 / zoom.min(5.0);
         let arm = 8.0 * s;
         let sw = 1.5 * s;
@@ -289,6 +336,7 @@ fn build_target_marker(svg: &mut String, target: Option<(f64, f64)>, zoom: f64) 
         let fs = 8.0 * s;
         let label_y = ty - 12.0 * s;
         let tsw = 2.0 * s;
+        let label = marker_label("TARGET", i, total);
         svg.push_str(&format!(
             r##"<line x1="{}" y1="{ty}" x2="{}" y2="{ty}" stroke="#e94560" stroke-width="{sw}"/>"##,
             tx - arm,
@@ -303,24 +351,26 @@ fn build_target_marker(svg: &mut String, target: Option<(f64, f64)>, zoom: f64) 
             r##"<circle cx="{tx}" cy="{ty}" r="{r}" fill="#e94560" stroke="white" stroke-width="{sw}"/>"##
         ));
         svg.push_str(&format!(
-            r##"<text x="{tx}" y="{label_y}" fill="#ffcccc" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">TARGET</text>"##
+            r##"<text x="{tx}" y="{label_y}" fill="#ffcccc" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
         ));
     }
 }
 
-fn build_spotter_marker(svg: &mut String, spotter: Option<(f64, f64)>, zoom: f64) {
-    if let Some((sx, sy)) = spotter {
+fn build_spotter_markers(svg: &mut String, spotters: &[(f64, f64)], zoom: f64) {
+    let total = spotters.len();
+    for (i, &(sx, sy)) in spotters.iter().enumerate() {
         let s = 1.0 / zoom.min(5.0);
         let r = 5.0 * s;
         let sw = 1.5 * s;
         let fs = 8.0 * s;
         let label_y = sy - 10.0 * s;
         let tsw = 2.0 * s;
+        let label = marker_label("SPOTTER", i, total);
         svg.push_str(&format!(
             r##"<circle cx="{sx}" cy="{sy}" r="{r}" fill="#7ec8e3" stroke="white" stroke-width="{sw}"/>"##
         ));
         svg.push_str(&format!(
-            r##"<text x="{sx}" y="{label_y}" fill="#cce7ff" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">SPOTTER</text>"##
+            r##"<text x="{sx}" y="{label_y}" fill="#cce7ff" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
         ));
     }
 }
@@ -333,11 +383,11 @@ fn build_spotter_marker(svg: &mut String, spotter: Option<(f64, f64)>, zoom: f64
 pub fn MapView(
     map_file_name: String,
     placement_mode: Signal<PlacementMode>,
-    gun_pos: Signal<Option<(f64, f64)>>,
-    target_pos: Signal<Option<(f64, f64)>>,
-    spotter_pos: Signal<Option<(f64, f64)>>,
+    gun_positions: Signal<Vec<(f64, f64)>>,
+    target_positions: Signal<Vec<(f64, f64)>>,
+    spotter_positions: Signal<Vec<(f64, f64)>>,
     selected_weapon: Option<WeaponData>,
-    accuracy_radius_px: Option<f64>,
+    accuracy_radii_px: Vec<Option<f64>>,
 ) -> Element {
     let image_url = format!("/static/images/maps/{}.webp", map_file_name);
 
@@ -355,14 +405,14 @@ pub fn MapView(
     let mut drag_start_pan_y = use_signal(|| 0.0_f64);
 
     // Read marker positions for SVG rendering
-    let gun = *gun_pos.read();
-    let target = *target_pos.read();
-    let spotter = *spotter_pos.read();
+    let guns = gun_positions.read().clone();
+    let targets = target_positions.read().clone();
+    let spotters = spotter_positions.read().clone();
 
     // Snapshot current transform for the render
     let cur_zoom = *zoom.read();
 
-    let svg_content = build_svg_content(gun, target, spotter, &selected_weapon, accuracy_radius_px, cur_zoom);
+    let svg_content = build_svg_content(&guns, &targets, &spotters, &selected_weapon, &accuracy_radii_px, cur_zoom);
     let svg_html = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;">{}</svg>"#,
         grid::MAP_WIDTH_PX, grid::MAP_HEIGHT_PX, svg_content
@@ -379,6 +429,20 @@ pub fn MapView(
     } else {
         "map-container"
     };
+
+    // Build coord readout tags
+    let gun_tags: Vec<(String, String)> = guns.iter().enumerate().map(|(i, pos)| {
+        let label = if guns.len() <= 1 { "GUN".to_string() } else { format!("GUN {}", i + 1) };
+        (label, coords::format_px_as_grid(pos.0, pos.1))
+    }).collect();
+    let target_tags: Vec<(String, String)> = targets.iter().enumerate().map(|(i, pos)| {
+        let label = if targets.len() <= 1 { "TGT".to_string() } else { format!("TGT {}", i + 1) };
+        (label, coords::format_px_as_grid(pos.0, pos.1))
+    }).collect();
+    let spotter_tags: Vec<(String, String)> = spotters.iter().enumerate().map(|(i, pos)| {
+        let label = if spotters.len() <= 1 { "SPT".to_string() } else { format!("SPT {}", i + 1) };
+        (label, coords::format_px_as_grid(pos.0, pos.1))
+    }).collect();
 
     rsx! {
         div {
@@ -411,6 +475,10 @@ pub fn MapView(
             },
 
             onmousedown: move |evt: Event<MouseData>| {
+                // Only track drag/click for left mouse button
+                if evt.trigger_button() != Some(MouseButton::Primary) {
+                    return;
+                }
                 let client = evt.client_coordinates();
                 is_dragging.set(true);
                 did_drag.set(false);
@@ -445,17 +513,87 @@ pub fn MapView(
                 let was_drag = *did_drag.read();
                 is_dragging.set(false);
 
-                // A mouseup without drag movement = a click → place marker
+                // A mouseup without drag movement = a click → append marker
                 if was_dragging && !was_drag {
                     let client = evt.client_coordinates();
                     if let Some((img_x, img_y)) = coords::click_to_map_px_zoomed(
                         client.x, client.y, MAP_CONTAINER_ID,
                         *zoom.read(), *pan_x.read(), *pan_y.read(),
                     ) {
-                        match *placement_mode.read() {
-                            PlacementMode::Gun => gun_pos.set(Some((img_x, img_y))),
-                            PlacementMode::Target => target_pos.set(Some((img_x, img_y))),
-                            PlacementMode::Spotter => spotter_pos.set(Some((img_x, img_y))),
+                        let mode = *placement_mode.read();
+                        match mode {
+                            PlacementMode::Gun => gun_positions.write().push((img_x, img_y)),
+                            PlacementMode::Target => target_positions.write().push((img_x, img_y)),
+                            PlacementMode::Spotter => spotter_positions.write().push((img_x, img_y)),
+                        }
+                        // Auto-cycle: Gun → Target → Gun for easy pairing
+                        match mode {
+                            PlacementMode::Gun => placement_mode.set(PlacementMode::Target),
+                            PlacementMode::Target => placement_mode.set(PlacementMode::Gun),
+                            PlacementMode::Spotter => {} // stay in spotter mode
+                        }
+                    }
+                }
+            },
+
+            oncontextmenu: move |evt: Event<MouseData>| {
+                evt.prevent_default();
+                let client = evt.client_coordinates();
+                if let Some((img_x, img_y)) = coords::click_to_map_px_zoomed(
+                    client.x, client.y, MAP_CONTAINER_ID,
+                    *zoom.read(), *pan_x.read(), *pan_y.read(),
+                ) {
+                    let threshold = REMOVE_THRESHOLD / (*zoom.read()).min(5.0);
+                    let click = (img_x, img_y);
+
+                    // Clone positions to avoid borrow conflicts with Signal read/write
+                    let guns_snap = gun_positions.read().clone();
+                    let targets_snap = target_positions.read().clone();
+                    let spotters_snap = spotter_positions.read().clone();
+
+                    // Check active placement mode's list first for priority
+                    let mode = *placement_mode.read();
+                    let removed = match mode {
+                        PlacementMode::Gun => {
+                            if let Some(idx) = find_nearest(&guns_snap, click, threshold) {
+                                gun_positions.write().remove(idx);
+                                true
+                            } else { false }
+                        }
+                        PlacementMode::Target => {
+                            if let Some(idx) = find_nearest(&targets_snap, click, threshold) {
+                                target_positions.write().remove(idx);
+                                true
+                            } else { false }
+                        }
+                        PlacementMode::Spotter => {
+                            if let Some(idx) = find_nearest(&spotters_snap, click, threshold) {
+                                spotter_positions.write().remove(idx);
+                                true
+                            } else { false }
+                        }
+                    };
+
+                    // If nothing found in the active mode's list, check all lists
+                    if !removed {
+                        let gun_hit = find_nearest(&guns_snap, click, threshold)
+                            .map(|idx| (idx, dist(&guns_snap[idx], click), 0u8));
+                        let tgt_hit = find_nearest(&targets_snap, click, threshold)
+                            .map(|idx| (idx, dist(&targets_snap[idx], click), 1u8));
+                        let spt_hit = find_nearest(&spotters_snap, click, threshold)
+                            .map(|idx| (idx, dist(&spotters_snap[idx], click), 2u8));
+
+                        let nearest = [gun_hit, tgt_hit, spt_hit]
+                            .into_iter()
+                            .flatten()
+                            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+                        if let Some((idx, _, kind)) = nearest {
+                            match kind {
+                                0 => { gun_positions.write().remove(idx); }
+                                1 => { target_positions.write().remove(idx); }
+                                _ => { spotter_positions.write().remove(idx); }
+                            }
                         }
                     }
                 }
@@ -487,19 +625,19 @@ pub fn MapView(
 
             // Coordinate readout (outside the transform so it stays fixed)
             div { class: "coord-readout",
-                if let Some(pos) = gun {
+                for (label, coord) in gun_tags {
                     span { class: "coord-tag gun-tag",
-                        "GUN: {coords::format_px_as_grid(pos.0, pos.1)}"
+                        "{label}: {coord}"
                     }
                 }
-                if let Some(pos) = target {
+                for (label, coord) in target_tags {
                     span { class: "coord-tag target-tag",
-                        "TGT: {coords::format_px_as_grid(pos.0, pos.1)}"
+                        "{label}: {coord}"
                     }
                 }
-                if let Some(pos) = spotter {
+                for (label, coord) in spotter_tags {
                     span { class: "coord-tag spotter-tag",
-                        "SPT: {coords::format_px_as_grid(pos.0, pos.1)}"
+                        "{label}: {coord}"
                     }
                 }
             }

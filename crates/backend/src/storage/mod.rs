@@ -45,8 +45,9 @@ impl Storage {
 
         match table.get(id).map_err(|e| e.to_string())? {
             Some(value) => {
-                let plan: Plan =
+                let mut plan: Plan =
                     serde_json::from_slice(value.value()).map_err(|e| e.to_string())?;
+                plan.migrate();
                 Ok(Some(plan))
             }
             None => Ok(None),

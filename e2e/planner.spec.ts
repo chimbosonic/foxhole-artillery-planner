@@ -617,6 +617,89 @@ test.describe("Foxhole Artillery Planner", () => {
     }
   });
 
+  test("multiple gun clicks place multiple markers", async ({ page }) => {
+    const gunBtn = page.locator(".placement-mode button", { hasText: "Gun" });
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+
+    // Place 3 guns — re-select Gun mode each time because auto-cycle switches to Target
+    await gunBtn.click();
+    await mapContainer.click({ position: { x: box!.width * 0.2, y: box!.height * 0.3 } });
+    await gunBtn.click();
+    await mapContainer.click({ position: { x: box!.width * 0.4, y: box!.height * 0.5 } });
+    await gunBtn.click();
+    await mapContainer.click({ position: { x: box!.width * 0.6, y: box!.height * 0.7 } });
+
+    // Should see 3 gun markers (labeled GUN 1, GUN 2, GUN 3)
+    const svg = page.locator(".map-container svg");
+    await expect(svg.locator('text:text("GUN 1")')).toBeVisible({ timeout: 5000 });
+    await expect(svg.locator('text:text("GUN 2")')).toBeVisible();
+    await expect(svg.locator('text:text("GUN 3")')).toBeVisible();
+
+    // Should see 3 gun coord tags
+    const gunTags = page.locator(".coord-tag.gun-tag");
+    await expect(gunTags).toHaveCount(3);
+  });
+
+  test("right-click removes nearest marker", async ({ page }) => {
+    await page
+      .locator(".placement-mode button", { hasText: "Gun" })
+      .click();
+
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+
+    // Place a gun marker
+    const cx = box!.width * 0.5;
+    const cy = box!.height * 0.5;
+    await mapContainer.click({ position: { x: cx, y: cy } });
+
+    const svg = page.locator(".map-container svg");
+    await expect(svg.locator('text:text("GUN")')).toBeVisible({ timeout: 5000 });
+
+    // Right-click near the same spot to remove it
+    await mapContainer.click({
+      position: { x: cx, y: cy },
+      button: "right",
+    });
+
+    // Gun marker should be gone
+    await expect(svg.locator('text:text("GUN")')).not.toBeVisible({ timeout: 5000 });
+  });
+
+  test("right-click removes correct marker from multiple", async ({ page }) => {
+    const gunBtn = page.locator(".placement-mode button", { hasText: "Gun" });
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+
+    // Place 2 guns — re-select Gun mode after auto-cycle
+    await gunBtn.click();
+    await mapContainer.click({ position: { x: box!.width * 0.3, y: box!.height * 0.5 } });
+    await gunBtn.click();
+    await mapContainer.click({ position: { x: box!.width * 0.7, y: box!.height * 0.5 } });
+
+    const svg = page.locator(".map-container svg");
+    await expect(svg.locator('text:text("GUN 1")')).toBeVisible({ timeout: 5000 });
+    await expect(svg.locator('text:text("GUN 2")')).toBeVisible();
+
+    // Switch back to Gun mode so right-click checks guns first
+    await gunBtn.click();
+
+    // Right-click near the first gun to remove it
+    await mapContainer.click({
+      position: { x: box!.width * 0.3, y: box!.height * 0.5 },
+      button: "right",
+    });
+
+    // After removal, only one gun remains — label goes back to "GUN" (no number)
+    await expect(svg.locator('text:text("GUN")')).toBeVisible({ timeout: 5000 });
+    await expect(svg.locator('text:text("GUN 1")')).not.toBeVisible();
+    await expect(svg.locator('text:text("GUN 2")')).not.toBeVisible();
+  });
+
   test("changing map resets placed markers", async ({ page }) => {
     const mapContainer = page.locator(".map-container");
     const box = await mapContainer.boundingBox();
