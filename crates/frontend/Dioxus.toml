@@ -1,0 +1,17 @@
+[application]
+name = "foxhole-artillery-planner"
+
+[web.app]
+title = "Foxhole Artillery Planner"
+
+[web.resource]
+style = ["main.css"]
+
+[web.resource.dev]
+style = ["main.css"]
+
+[[web.proxy]]
+backend = "http://localhost:3000/graphql"
+
+[[web.proxy]]
+backend = "http://localhost:3000/assets"

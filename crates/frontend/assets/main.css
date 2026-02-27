@@ -1,0 +1,306 @@
+:root {
+    --bg-dark: #1a1a2e;
+    --bg-panel: #16213e;
+    --bg-input: #0f3460;
+    --accent: #e94560;
+    --accent-green: #4ecca3;
+    --accent-blue: #7ec8e3;
+    --text: #eee;
+    --text-dim: #999;
+    --border: #333;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: var(--bg-dark);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+}
+
+.app {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+}
+
+.header {
+    grid-column: 1 / -1;
+    background: var(--bg-panel);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.sidebar {
+    background: var(--bg-panel);
+    padding: 12px;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.panel {
+    background: var(--bg-dark);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.panel h3 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+}
+
+.map-container {
+    position: relative;
+    overflow: hidden;
+    cursor: crosshair;
+    background: #000;
+}
+
+.map-container img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.marker {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid white;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 10;
+}
+
+.marker.gun {
+    background: var(--accent-green);
+    box-shadow: 0 0 8px var(--accent-green);
+}
+
+.marker.target {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+}
+
+.marker.spotter {
+    background: var(--accent-blue);
+    box-shadow: 0 0 8px var(--accent-blue);
+}
+
+.marker-label {
+    position: absolute;
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    text-shadow: 0 0 4px black;
+}
+
+select, input[type="text"], input[type="number"] {
+    width: 100%;
+    padding: 6px 8px;
+    background: var(--bg-input);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+select:focus, input:focus {
+    outline: 1px solid var(--accent);
+}
+
+button {
+    padding: 6px 12px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+button.secondary {
+    background: var(--bg-input);
+}
+
+.wind-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    max-width: 160px;
+    margin: 0 auto 8px;
+}
+
+.wind-grid button {
+    padding: 4px;
+    font-size: 11px;
+    background: var(--bg-input);
+}
+
+.wind-grid button.active {
+    background: var(--accent);
+}
+
+.wind-grid .center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.strength-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.strength-row label {
+    font-size: 12px;
+    white-space: nowrap;
+    color: var(--text-dim);
+}
+
+.strength-row input[type="range"] {
+    flex: 1;
+}
+
+.strength-row .value {
+    font-size: 14px;
+    font-weight: 700;
+    min-width: 20px;
+    text-align: center;
+}
+
+.solution {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.solution .stat {
+    text-align: center;
+}
+
+.solution .stat .label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+}
+
+.solution .stat .value {
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.solution .stat .value.in-range {
+    color: var(--accent-green);
+}
+
+.solution .stat .value.out-of-range {
+    color: var(--accent);
+}
+
+.solution .stat.full-width {
+    grid-column: 1 / -1;
+}
+
+.wind-adjusted {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.wind-adjusted h4 {
+    font-size: 11px;
+    color: var(--accent-blue);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.plan-url {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.plan-url input {
+    flex: 1;
+    font-size: 11px;
+}
+
+.placement-mode {
+    display: flex;
+    gap: 4px;
+}
+
+.placement-mode button {
+    flex: 1;
+    font-size: 11px;
+    padding: 4px;
+}
+
+.placement-mode button.active-gun {
+    background: var(--accent-green);
+}
+
+.placement-mode button.active-target {
+    background: var(--accent);
+}
+
+.placement-mode button.active-spotter {
+    background: var(--accent-blue);
+}
+
+.svg-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    font-size: 18px;
+    color: var(--text-dim);
+}
