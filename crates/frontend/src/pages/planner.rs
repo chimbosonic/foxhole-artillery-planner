@@ -2,7 +2,7 @@ use dioxus::prelude::*;
 
 use crate::api::{self, FiringSolutionData, MapData, WeaponData};
 use crate::components::calculation_display::CalculationDisplay;
-use crate::components::map_view::{MapView, PlacementMode};
+use crate::components::map_view::{MapView, PlacementMode, SelectedMarker};
 use crate::components::plan_panel::PlanPanel;
 use crate::components::weapon_selector::WeaponSelector;
 use crate::components::wind_input::WindInput;
@@ -24,6 +24,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     let mut wind_direction = use_signal(|| None::<f64>);
     let mut wind_strength = use_signal(|| 0u32);
     let mut gun_weapon_ids = use_signal(Vec::<String>::new);
+    let mut selected_marker = use_signal(|| None::<SelectedMarker>);
     let mut plan_name = use_signal(|| "New Plan".to_string());
     let mut plan_url = use_signal(|| None::<String>);
     let mut firing_solutions = use_signal(Vec::<Option<FiringSolutionData>>::new);
@@ -148,6 +149,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                             target_positions.set(vec![]);
                             spotter_positions.set(vec![]);
                             gun_weapon_ids.set(vec![]);
+                            selected_marker.set(None);
                         },
                         for m in &maps {
                             option {
@@ -174,8 +176,9 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     gun_positions: gun_positions.read().clone(),
                     target_positions: target_positions.read().clone(),
                     spotter_positions: spotter_positions.read().clone(),
-                    gun_weapon_ids: gun_weapon_ids.read().clone(),
+                    gun_weapon_ids: gun_weapon_ids,
                     weapons: weapons.clone(),
+                    selected_marker: selected_marker,
                 }
 
                 PlanPanel {
@@ -259,6 +262,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     selected_weapon_slug: selected_weapon,
                     weapons: weapons.clone(),
                     accuracy_radii_px: accuracy_radii_px,
+                    selected_marker: selected_marker,
                 }
             }
         }

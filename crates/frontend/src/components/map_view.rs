@@ -1,4 +1,5 @@
 use dioxus::html::geometry::WheelDelta;
+use dioxus::html::input_data::keyboard_types::Key;
 use dioxus::html::input_data::MouseButton;
 use dioxus::prelude::*;
 use foxhole_shared::grid;
@@ -23,6 +24,19 @@ pub enum PlacementMode {
     Gun,
     Target,
     Spotter,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum MarkerKind {
+    Gun,
+    Target,
+    Spotter,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SelectedMarker {
+    pub kind: MarkerKind,
+    pub index: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +142,7 @@ fn build_svg_content(
     gun_weapons: &[Option<&WeaponData>],
     accuracy_radii_px: &[Option<f64>],
     zoom: f64,
+    selected: Option<SelectedMarker>,
 ) -> String {
     let mut svg = String::with_capacity(8192);
 
@@ -140,9 +155,9 @@ fn build_svg_content(
     build_range_circles(&mut svg, guns, gun_weapons, zoom);
     build_firing_lines(&mut svg, guns, targets, zoom);
     build_accuracy_circles(&mut svg, targets, accuracy_radii_px, zoom);
-    build_gun_markers(&mut svg, guns, zoom);
-    build_target_markers(&mut svg, targets, zoom);
-    build_spotter_markers(&mut svg, spotters, zoom);
+    build_gun_markers(&mut svg, guns, zoom, selected);
+    build_target_markers(&mut svg, targets, zoom, selected);
+    build_spotter_markers(&mut svg, spotters, zoom, selected);
 
     svg
 }
@@ -306,7 +321,7 @@ fn marker_label(base: &str, index: usize, total: usize) -> String {
     }
 }
 
-fn build_gun_markers(svg: &mut String, guns: &[(f64, f64)], zoom: f64) {
+fn build_gun_markers(svg: &mut String, guns: &[(f64, f64)], zoom: f64, selected: Option<SelectedMarker>) {
     let total = guns.len();
     for (i, &(gx, gy)) in guns.iter().enumerate() {
         let s = 1.0 / zoom.min(5.0);
@@ -322,10 +337,13 @@ fn build_gun_markers(svg: &mut String, guns: &[(f64, f64)], zoom: f64) {
         svg.push_str(&format!(
             r##"<text x="{gx}" y="{ty}" fill="white" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
         ));
+        if selected == Some(SelectedMarker { kind: MarkerKind::Gun, index: i }) {
+            build_selection_ring(svg, gx, gy, s);
+        }
     }
 }
 
-fn build_target_markers(svg: &mut String, targets: &[(f64, f64)], zoom: f64) {
+fn build_target_markers(svg: &mut String, targets: &[(f64, f64)], zoom: f64, selected: Option<SelectedMarker>) {
     let total = targets.len();
     for (i, &(tx, ty)) in targets.iter().enumerate() {
         let s = 1.0 / zoom.min(5.0);
@@ -352,10 +370,13 @@ fn build_target_markers(svg: &mut String, targets: &[(f64, f64)], zoom: f64) {
         svg.push_str(&format!(
             r##"<text x="{tx}" y="{label_y}" fill="#ffcccc" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
         ));
+        if selected == Some(SelectedMarker { kind: MarkerKind::Target, index: i }) {
+            build_selection_ring(svg, tx, ty, s);
+        }
     }
 }
 
-fn build_spotter_markers(svg: &mut String, spotters: &[(f64, f64)], zoom: f64) {
+fn build_spotter_markers(svg: &mut String, spotters: &[(f64, f64)], zoom: f64, selected: Option<SelectedMarker>) {
     let total = spotters.len();
     for (i, &(sx, sy)) in spotters.iter().enumerate() {
         let s = 1.0 / zoom.min(5.0);
@@ -371,7 +392,21 @@ fn build_spotter_markers(svg: &mut String, spotters: &[(f64, f64)], zoom: f64) {
         svg.push_str(&format!(
             r##"<text x="{sx}" y="{label_y}" fill="#cce7ff" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
         ));
+        if selected == Some(SelectedMarker { kind: MarkerKind::Spotter, index: i }) {
+            build_selection_ring(svg, sx, sy, s);
+        }
     }
+}
+
+/// Emit an animated dashed selection ring around a marker.
+fn build_selection_ring(svg: &mut String, cx: f64, cy: f64, s: f64) {
+    let r = 12.0 * s;
+    let sw = 1.5 * s;
+    let da1 = 3.0 * s;
+    let da2 = 2.0 * s;
+    svg.push_str(&format!(
+        r##"<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="white" stroke-width="{sw}" stroke-dasharray="{da1} {da2}" opacity="0.9"><animate attributeName="opacity" values="0.5;1;0.5" dur="1.2s" repeatCount="indefinite"/></circle>"##
+    ));
 }
 
 // ---------------------------------------------------------------------------
@@ -389,6 +424,7 @@ pub fn MapView(
     selected_weapon_slug: Signal<String>,
     weapons: Vec<WeaponData>,
     accuracy_radii_px: Vec<Option<f64>>,
+    selected_marker: Signal<Option<SelectedMarker>>,
 ) -> Element {
     let image_url = format!("/static/images/maps/{}.webp", map_file_name);
 
@@ -418,8 +454,9 @@ pub fn MapView(
 
     // Snapshot current transform for the render
     let cur_zoom = *zoom.read();
+    let cur_selected = *selected_marker.read();
 
-    let svg_content = build_svg_content(&guns, &targets, &spotters, &gun_weapons, &accuracy_radii_px, cur_zoom);
+    let svg_content = build_svg_content(&guns, &targets, &spotters, &gun_weapons, &accuracy_radii_px, cur_zoom, cur_selected);
     let svg_html = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;">{}</svg>"#,
         grid::MAP_WIDTH_PX, grid::MAP_HEIGHT_PX, svg_content
@@ -431,8 +468,11 @@ pub fn MapView(
     let transform_style = format!(
         "transform: translate({cur_pan_x}px, {cur_pan_y}px) scale({cur_zoom}); transform-origin: 0 0;"
     );
+    let has_selection = cur_selected.is_some();
     let container_class = if dragging {
         "map-container dragging"
+    } else if has_selection {
+        "map-container move-mode"
     } else {
         "map-container"
     };
@@ -455,6 +495,13 @@ pub fn MapView(
         div {
             id: MAP_CONTAINER_ID,
             class: "{container_class}",
+            tabindex: "0",
+
+            onkeydown: move |evt: Event<KeyboardData>| {
+                if evt.key() == Key::Escape {
+                    selected_marker.set(None);
+                }
+            },
 
             onwheel: move |evt: Event<WheelData>| {
                 evt.prevent_default();
@@ -520,13 +567,38 @@ pub fn MapView(
                 let was_drag = *did_drag.read();
                 is_dragging.set(false);
 
-                // A mouseup without drag movement = a click → append marker
+                // A mouseup without drag movement = a click
                 if was_dragging && !was_drag {
                     let client = evt.client_coordinates();
                     if let Some((img_x, img_y)) = coords::click_to_map_px_zoomed(
                         client.x, client.y, MAP_CONTAINER_ID,
                         *zoom.read(), *pan_x.read(), *pan_y.read(),
                     ) {
+                        // Move-mode: if a marker is selected, move it instead of placing
+                        let cur_sel = *selected_marker.read();
+                        if let Some(sm) = cur_sel {
+                            match sm.kind {
+                                MarkerKind::Gun => {
+                                    if let Some(pos) = gun_positions.write().get_mut(sm.index) {
+                                        *pos = (img_x, img_y);
+                                    }
+                                }
+                                MarkerKind::Target => {
+                                    if let Some(pos) = target_positions.write().get_mut(sm.index) {
+                                        *pos = (img_x, img_y);
+                                    }
+                                }
+                                MarkerKind::Spotter => {
+                                    if let Some(pos) = spotter_positions.write().get_mut(sm.index) {
+                                        *pos = (img_x, img_y);
+                                    }
+                                }
+                            }
+                            selected_marker.set(None);
+                            return;
+                        }
+
+                        // Normal placement mode
                         let mode = *placement_mode.read();
                         match mode {
                             PlacementMode::Gun => {
@@ -561,6 +633,20 @@ pub fn MapView(
                     let targets_snap = target_positions.read().clone();
                     let spotters_snap = spotter_positions.read().clone();
 
+                    // Helper: fixup selection after removing index `idx` of `kind`
+                    let mut fixup_selection = |kind: MarkerKind, idx: usize| {
+                        let cur_sel = *selected_marker.read();
+                        if let Some(sm) = cur_sel {
+                            if sm.kind == kind {
+                                if sm.index == idx {
+                                    selected_marker.set(None);
+                                } else if sm.index > idx {
+                                    selected_marker.set(Some(SelectedMarker { kind, index: sm.index - 1 }));
+                                }
+                            }
+                        }
+                    };
+
                     // Check active placement mode's list first for priority
                     let mode = *placement_mode.read();
                     let removed = match mode {
@@ -568,18 +654,21 @@ pub fn MapView(
                             if let Some(idx) = find_nearest(&guns_snap, click, threshold) {
                                 gun_positions.write().remove(idx);
                                 gun_weapon_ids.write().remove(idx);
+                                fixup_selection(MarkerKind::Gun, idx);
                                 true
                             } else { false }
                         }
                         PlacementMode::Target => {
                             if let Some(idx) = find_nearest(&targets_snap, click, threshold) {
                                 target_positions.write().remove(idx);
+                                fixup_selection(MarkerKind::Target, idx);
                                 true
                             } else { false }
                         }
                         PlacementMode::Spotter => {
                             if let Some(idx) = find_nearest(&spotters_snap, click, threshold) {
                                 spotter_positions.write().remove(idx);
+                                fixup_selection(MarkerKind::Spotter, idx);
                                 true
                             } else { false }
                         }
@@ -604,9 +693,16 @@ pub fn MapView(
                                 0 => {
                                     gun_positions.write().remove(idx);
                                     gun_weapon_ids.write().remove(idx);
+                                    fixup_selection(MarkerKind::Gun, idx);
                                 }
-                                1 => { target_positions.write().remove(idx); }
-                                _ => { spotter_positions.write().remove(idx); }
+                                1 => {
+                                    target_positions.write().remove(idx);
+                                    fixup_selection(MarkerKind::Target, idx);
+                                }
+                                _ => {
+                                    spotter_positions.write().remove(idx);
+                                    fixup_selection(MarkerKind::Spotter, idx);
+                                }
                             }
                         }
                     }
