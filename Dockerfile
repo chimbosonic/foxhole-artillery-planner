@@ -1,9 +1,10 @@
 # -- Stage 1: Build backend + frontend WASM --
 FROM rust:1.93-slim AS builder
 
-RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y pkg-config libssl-dev curl && rm -rf /var/lib/apt/lists/*
 RUN rustup target add wasm32-unknown-unknown
-RUN cargo install dioxus-cli@0.7.3 --locked
+RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+RUN cargo binstall dioxus-cli@0.7.3 --no-confirm --locked
 
 WORKDIR /app
 COPY Cargo.toml Cargo.toml
