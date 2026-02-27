@@ -214,6 +214,29 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                         });
                     },
                 }
+
+                div { class: "panel about",
+                    h3 { "About" }
+                    p { "Foxhole Artillery Planner — a tool for planning artillery operations in Foxhole." }
+                    p {
+                        "Built by "
+                        a {
+                            href: "https://keyoxide.org/alexis.lowe%40chimbosonic.com",
+                            target: "_blank",
+                            "Alexis Lowe aka Chimbosonic"
+                        }
+                        "."
+                    }
+                    p {
+                        "Map assets by "
+                        a {
+                            href: "https://rustard.itch.io/improved-map-mod",
+                            target: "_blank",
+                            "Rustard's Improved Map Mod"
+                        }
+                        "."
+                    }
+                }
             }
 
             // Map view

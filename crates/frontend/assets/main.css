@@ -427,11 +427,33 @@ button.secondary {
 }
 
 .placement-mode button.active-target {
-    background: var(--accent);
+    background: #e8a317;
 }
 
 .placement-mode button.active-spotter {
     background: var(--accent-blue);
+}
+
+/* --- About panel --- */
+
+.about {
+    margin-top: auto;
+}
+
+.about p {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.4;
+    margin-bottom: 4px;
+}
+
+.about a {
+    color: var(--accent-blue);
+    text-decoration: none;
+}
+
+.about a:hover {
+    text-decoration: underline;
 }
 
 /* --- Loading state --- */
