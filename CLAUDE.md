@@ -40,7 +40,7 @@ Rust workspace with three crates:
 
 Three coordinate spaces are used throughout the codebase. Tracking which space you're in is critical:
 
-1. **Map-image pixels** (0–1024 × 0–888) — Internal logical coordinate space. All position state (`gun_positions`, `target_positions`, `spotter_positions`) stored in this space. Constants in `crates/shared/src/grid.rs`.
+1. **Map-image pixels** (0–2048 × 0–1776) — Internal logical coordinate space. All position state (`gun_positions`, `target_positions`, `spotter_positions`) stored in this space. Constants in `crates/shared/src/grid.rs`.
 2. **Meters** (0–2184 × 0–1890) — World coordinates used for artillery math and plan storage. Conversion via `grid::px_to_meters()` / `grid::meters_to_px()`.
 3. **Grid coordinates** ("G9k5") — Display format. 17 columns (A–Q) × 15 rows (1–15), each cell has a 3×3 numpad sub-grid (k1–k9).
 
@@ -57,7 +57,7 @@ All UI state lives as Dioxus `Signal`s in `crates/frontend/src/pages/planner.rs`
 ## Game Assets
 
 - `assets/maps.json` / `assets/weapons.json` — Game data loaded at backend startup
-- `assets/images/maps/*.webp` — Map images (2048×1776 actual, rendered at logical 1024×888)
+- `assets/images/maps/*.webp` — Map images (2048×1776 pixels)
 
 ## Rules
 Don't commit code

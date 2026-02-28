@@ -99,7 +99,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     let maps_resource = use_resource(api::fetch_maps);
     let weapons_resource = use_resource(api::fetch_weapons);
 
-    // UI state signals — positions are in native map-image pixel space (1024x888)
+    // UI state signals — positions are in native map-image pixel space (2048x1776)
     let mut selected_map = use_signal(String::new);
     let mut selected_weapon = use_signal(String::new);
     let mut placement_mode = use_signal(|| PlacementMode::Gun);
