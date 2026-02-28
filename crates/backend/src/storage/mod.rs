@@ -5,6 +5,8 @@ use std::sync::Arc;
 
 const PLANS_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("plans");
 const GUN_PLACEMENTS_TABLE: TableDefinition<&str, u64> = TableDefinition::new("gun_placements");
+const MARKER_PLACEMENTS_TABLE: TableDefinition<&str, u64> =
+    TableDefinition::new("marker_placements");
 
 pub struct Storage {
     db: Database,
@@ -21,6 +23,7 @@ impl Storage {
         {
             let _ = write_txn.open_table(PLANS_TABLE);
             let _ = write_txn.open_table(GUN_PLACEMENTS_TABLE);
+            let _ = write_txn.open_table(MARKER_PLACEMENTS_TABLE);
         }
         write_txn.commit().expect("Failed to commit initial txn");
 
@@ -110,6 +113,35 @@ impl Storage {
         Ok(())
     }
 
+    pub fn increment_marker_placement(&self, kind: &str) -> Result<(), String> {
+        let write_txn = self.db.begin_write().map_err(|e| e.to_string())?;
+        {
+            let mut table = write_txn
+                .open_table(MARKER_PLACEMENTS_TABLE)
+                .map_err(|e| e.to_string())?;
+            let current = table
+                .get(kind)
+                .map_err(|e| e.to_string())?
+                .map(|v| v.value())
+                .unwrap_or(0);
+            table.insert(kind, current + 1).map_err(|e| e.to_string())?;
+        }
+        write_txn.commit().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn get_marker_placement_count(&self, kind: &str) -> Result<u64, String> {
+        let read_txn = self.db.begin_read().map_err(|e| e.to_string())?;
+        let table = read_txn
+            .open_table(MARKER_PLACEMENTS_TABLE)
+            .map_err(|e| e.to_string())?;
+        Ok(table
+            .get(kind)
+            .map_err(|e| e.to_string())?
+            .map(|v| v.value())
+            .unwrap_or(0))
+    }
+
     pub fn get_gun_placement_counts(&self) -> Result<Vec<(String, u64)>, String> {
         let read_txn = self.db.begin_read().map_err(|e| e.to_string())?;
         let table = read_txn
@@ -172,5 +204,27 @@ mod tests {
         let (storage, _dir) = temp_storage();
         let counts = storage.get_gun_placement_counts().unwrap();
         assert!(counts.is_empty());
+    }
+
+    #[test]
+    fn test_increment_marker_placement_new_kind() {
+        let (storage, _dir) = temp_storage();
+        storage.increment_marker_placement("target").unwrap();
+        assert_eq!(storage.get_marker_placement_count("target").unwrap(), 1);
+    }
+
+    #[test]
+    fn test_increment_marker_placement_accumulates() {
+        let (storage, _dir) = temp_storage();
+        for _ in 0..3 {
+            storage.increment_marker_placement("spotter").unwrap();
+        }
+        assert_eq!(storage.get_marker_placement_count("spotter").unwrap(), 3);
+    }
+
+    #[test]
+    fn test_get_marker_placement_count_absent() {
+        let (storage, _dir) = temp_storage();
+        assert_eq!(storage.get_marker_placement_count("target").unwrap(), 0);
     }
 }

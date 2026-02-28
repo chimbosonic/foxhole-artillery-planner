@@ -144,11 +144,18 @@ pub struct GqlFactionPlacementStats {
 }
 
 #[derive(SimpleObject)]
+pub struct GqlMarkerPlacementStats {
+    pub targets: u64,
+    pub spotters: u64,
+}
+
+#[derive(SimpleObject)]
 pub struct GqlStats {
     pub total_plans: u64,
     pub db_size_bytes: u64,
     pub gun_placements: Vec<GqlWeaponPlacementStat>,
     pub gun_placement_totals: GqlFactionPlacementStats,
+    pub marker_placements: GqlMarkerPlacementStats,
 }
 
 // Input types
@@ -338,6 +345,13 @@ impl QueryRoot {
             });
         }
 
+        let target_count = storage
+            .get_marker_placement_count("target")
+            .map_err(async_graphql::Error::new)?;
+        let spotter_count = storage
+            .get_marker_placement_count("spotter")
+            .map_err(async_graphql::Error::new)?;
+
         Ok(GqlStats {
             total_plans,
             db_size_bytes,
@@ -346,6 +360,10 @@ impl QueryRoot {
                 colonial: colonial_total,
                 warden: warden_total,
                 total: overall_total,
+            },
+            marker_placements: GqlMarkerPlacementStats {
+                targets: target_count,
+                spotters: spotter_count,
             },
         })
     }
@@ -463,6 +481,22 @@ impl MutationRoot {
     async fn delete_plan(&self, ctx: &Context<'_>, id: ID) -> async_graphql::Result<bool> {
         let storage = ctx.data::<Arc<Storage>>().unwrap();
         storage.delete_plan(&id).map_err(async_graphql::Error::new)
+    }
+
+    async fn track_target_placement(&self, ctx: &Context<'_>) -> async_graphql::Result<bool> {
+        let storage = ctx.data::<Arc<Storage>>().unwrap();
+        storage
+            .increment_marker_placement("target")
+            .map_err(async_graphql::Error::new)?;
+        Ok(true)
+    }
+
+    async fn track_spotter_placement(&self, ctx: &Context<'_>) -> async_graphql::Result<bool> {
+        let storage = ctx.data::<Arc<Storage>>().unwrap();
+        storage
+            .increment_marker_placement("spotter")
+            .map_err(async_graphql::Error::new)?;
+        Ok(true)
     }
 
     async fn track_gun_placement(

@@ -916,7 +916,7 @@ test.describe("Foxhole Artillery Planner", () => {
   });
 });
 
-test.describe("Gun placement tracking", () => {
+test.describe("Placement tracking", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector(".app", { timeout: 15_000 });
@@ -1058,5 +1058,51 @@ test.describe("Gun placement tracking", () => {
     expect(entry.displayName).toBe("Unassigned");
     expect(entry.faction).toBe("BOTH");
     expect(entry.count).toBeGreaterThanOrEqual(1);
+  });
+
+  test("placing a target increments target stats", async ({ page }) => {
+    // Switch to Target mode
+    await page.locator(".placement-mode button", { hasText: "Target" }).click();
+
+    // Place a target on the map
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await mapContainer.click({ position: { x: box!.width / 2, y: box!.height / 2 } });
+
+    // Wait for the fire-and-forget tracking call to complete
+    await page.waitForTimeout(1000);
+
+    // Query stats via GraphQL
+    const resp = await page.request.post("/graphql", {
+      data: {
+        query: `{ stats { markerPlacements { targets } } }`,
+      },
+    });
+    const json = await resp.json();
+    expect(json.data.stats.markerPlacements.targets).toBeGreaterThanOrEqual(1);
+  });
+
+  test("placing a spotter increments spotter stats", async ({ page }) => {
+    // Switch to Spotter mode
+    await page.locator(".placement-mode button", { hasText: "Spotter" }).click();
+
+    // Place a spotter on the map
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await mapContainer.click({ position: { x: box!.width / 2, y: box!.height / 2 } });
+
+    // Wait for the fire-and-forget tracking call to complete
+    await page.waitForTimeout(1000);
+
+    // Query stats via GraphQL
+    const resp = await page.request.post("/graphql", {
+      data: {
+        query: `{ stats { markerPlacements { spotters } } }`,
+      },
+    });
+    const json = await resp.json();
+    expect(json.data.stats.markerPlacements.spotters).toBeGreaterThanOrEqual(1);
   });
 });

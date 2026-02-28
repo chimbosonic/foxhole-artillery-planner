@@ -331,6 +331,42 @@ pub async fn track_gun_placement(weapon_slug: &str) -> Result<bool, String> {
     Ok(resp.track_gun_placement)
 }
 
+#[derive(Deserialize)]
+pub struct TrackTargetPlacementResponse {
+    #[serde(rename = "trackTargetPlacement")]
+    pub track_target_placement: bool,
+}
+
+#[derive(Deserialize)]
+pub struct TrackSpotterPlacementResponse {
+    #[serde(rename = "trackSpotterPlacement")]
+    pub track_spotter_placement: bool,
+}
+
+pub fn track_target_placement_fire() {
+    wasm_bindgen_futures::spawn_local(async move {
+        let _ = track_target_placement().await;
+    });
+}
+
+pub async fn track_target_placement() -> Result<bool, String> {
+    let resp: TrackTargetPlacementResponse =
+        query(r#"mutation { trackTargetPlacement }"#, None).await?;
+    Ok(resp.track_target_placement)
+}
+
+pub fn track_spotter_placement_fire() {
+    wasm_bindgen_futures::spawn_local(async move {
+        let _ = track_spotter_placement().await;
+    });
+}
+
+pub async fn track_spotter_placement() -> Result<bool, String> {
+    let resp: TrackSpotterPlacementResponse =
+        query(r#"mutation { trackSpotterPlacement }"#, None).await?;
+    Ok(resp.track_spotter_placement)
+}
+
 pub async fn fetch_plan(id: &str) -> Result<Option<PlanData>, String> {
     let variables = serde_json::json!({ "id": id });
 
@@ -572,6 +608,20 @@ mod tests {
     }
 
     // --- Gun placement tracking ---
+
+    #[test]
+    fn test_track_target_placement_response_deserializes() {
+        let json = r#"{"trackTargetPlacement": true}"#;
+        let resp: TrackTargetPlacementResponse = serde_json::from_str(json).unwrap();
+        assert!(resp.track_target_placement);
+    }
+
+    #[test]
+    fn test_track_spotter_placement_response_deserializes() {
+        let json = r#"{"trackSpotterPlacement": true}"#;
+        let resp: TrackSpotterPlacementResponse = serde_json::from_str(json).unwrap();
+        assert!(resp.track_spotter_placement);
+    }
 
     #[test]
     fn test_track_gun_placement_response_deserializes() {

@@ -794,6 +794,7 @@ pub fn MapView(
                                     if let Some(entry) = pairings.iter_mut().find(|p| p.is_none()) {
                                         *entry = Some(ti);
                                     }
+                                    crate::api::track_target_placement_fire();
                                 } else {
                                     // Place a new target and auto-pair with first unpaired gun
                                     target_positions.write().push((img_x, img_y));
@@ -802,9 +803,13 @@ pub fn MapView(
                                     if let Some(entry) = pairings.iter_mut().find(|p| p.is_none()) {
                                         *entry = Some(new_target_idx);
                                     }
+                                    crate::api::track_target_placement_fire();
                                 }
                             }
-                            PlacementMode::Spotter => spotter_positions.write().push((img_x, img_y)),
+                            PlacementMode::Spotter => {
+                                spotter_positions.write().push((img_x, img_y));
+                                crate::api::track_spotter_placement_fire();
+                            }
                         }
                         // Auto-cycle: Gun → Target → Gun for easy pairing
                         match mode {
