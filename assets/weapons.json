@@ -44,7 +44,7 @@
     "displayName": "AC-b Trident",
     "minRange": 100,
     "maxRange": 225,
-    "accRadius": [0, 0],
+    "accRadius": [2.5, 8.5],
     "windDrift": [10, 30]
   },
   {
@@ -66,17 +66,17 @@
   {
     "faction": "Colonial",
     "displayName": "R-17 \"Retiarius\" Skirmisher",
-    "minRange": 225,
-    "maxRange": 350,
-    "accRadius": [25, 41.5],
+    "minRange": 375,
+    "maxRange": 500,
+    "accRadius": [37.5, 51],
     "windDrift": [15, 40]
   },
   {
     "faction": "Colonial",
     "displayName": "DAE 3b-2 \"Hades' Net\"",
-    "minRange": 200,
-    "maxRange": 425,
-    "accRadius": [25, 41.5],
+    "minRange": 300,
+    "maxRange": 575,
+    "accRadius": [35, 52],
     "windDrift": [15, 40]
   },
   {
@@ -90,9 +90,9 @@
   {
     "faction": "Colonial",
     "displayName": "T13 \"Deioneus\" Rocket Battery",
-    "minRange": 250,
-    "maxRange": 300,
-    "accRadius": [30, 41.5],
+    "minRange": 350,
+    "maxRange": 400,
+    "accRadius": [41.5, 57.5],
     "windDrift": [15, 40]
   },
   {
@@ -138,25 +138,17 @@
   {
     "faction": "Warden",
     "displayName": "Niska-Rycker Mk. IX Skycaller",
-    "minRange": 200,
-    "maxRange": 275,
-    "accRadius": [25, 37.5],
+    "minRange": 275,
+    "maxRange": 350,
+    "accRadius": [37.5, 60],
     "windDrift": [15, 40]
   },
   {
     "faction": "Warden",
     "displayName": "Rycker 4/3-F Wasp Nest",
-    "minRange": 225,
-    "maxRange": 325,
-    "accRadius": [25, 37.5],
-    "windDrift": [15, 40]
-  },
-  {
-    "faction": "Warden",
-    "displayName": "King Jester - Mk. I-1",
-    "minRange": 200,
-    "maxRange": 350,
-    "accRadius": [30, 41],
+    "minRange": 350,
+    "maxRange": 450,
+    "accRadius": [37.5, 60],
     "windDrift": [15, 40]
   }
 ]

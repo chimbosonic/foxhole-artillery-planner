@@ -59,5 +59,10 @@ All UI state lives as Dioxus `Signal`s in `crates/frontend/src/pages/planner.rs`
 - `assets/maps.json` / `assets/weapons.json` — Game data loaded at backend startup
 - `assets/images/maps/*.webp` — Map images (2048×1776 pixels)
 
+## Data Sources
+
+- **Do NOT use** https://fharty.craftingthrulife.com/ — it is out of date and has incorrect weapon parameters.
+- **Prefer** https://foxhole.wiki.gg/ as the primary source for weapon stats (ranges, accuracy, wind drift, etc.).
+
 ## Rules
 Don't commit code
