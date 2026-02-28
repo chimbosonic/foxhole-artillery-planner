@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 const DEFAULT_GRAPHQL_URL: &str = "https://arty.dp42.dev/graphql";
-const DEFAULT_WAR_API_BASE: &str = "https://war-service-live.foxholeservices.com/api";
+const DEFAULT_WAR_API_BASE: &str = "https://war-service-live-3.foxholeservices.com/api";
 
 // --- GraphQL response types ---
 
@@ -55,7 +55,6 @@ struct WarState {
     conquest_end_time: Option<u64>,
     required_victory_towns: u64,
 }
-
 
 const SYSTEM_PROMPT: &str = r##"You are a Warden intelligence officer writing an end-of-war report for the Foxhole subreddit. The war is over. You are reviewing the artillery data and war statistics collected during the war and presenting your findings. Your tone is smug, triumphant, and dripping with barely-contained contempt for the Colonial faction.
 
@@ -165,9 +164,7 @@ fn format_stats(stats: &Stats) -> String {
 }
 
 fn get_arg(flag: &str) -> Option<String> {
-    std::env::args()
-        .skip_while(|a| a != flag)
-        .nth(1)
+    std::env::args().skip_while(|a| a != flag).nth(1)
 }
 
 fn main() {
@@ -183,8 +180,7 @@ fn main() {
         std::process::exit(1);
     });
 
-    let graphql_url =
-        get_arg("--url").unwrap_or_else(|| DEFAULT_GRAPHQL_URL.to_string());
+    let graphql_url = get_arg("--url").unwrap_or_else(|| DEFAULT_GRAPHQL_URL.to_string());
 
     let war_api_base = match get_arg("--shard").as_deref() {
         Some("live-2") => "https://war-service-live-2.foxholeservices.com/api".to_string(),
@@ -232,9 +228,7 @@ fn main() {
     data_summary.push_str(&format_stats(&stats_body.data.stats));
 
     // Derive the site URL from the GraphQL endpoint
-    let site_url = graphql_url
-        .strip_suffix("/graphql")
-        .unwrap_or(&graphql_url);
+    let site_url = graphql_url.strip_suffix("/graphql").unwrap_or(&graphql_url);
 
     // Output prompt for piping into `claude -p`
     println!(
