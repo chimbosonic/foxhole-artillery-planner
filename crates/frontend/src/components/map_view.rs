@@ -17,7 +17,7 @@ const ZOOM_MAX: f64 = 10.0;
 const ZOOM_STEP: f64 = 1.1;
 
 /// Distance threshold (in map-image pixels, before zoom) for right-click removal.
-const REMOVE_THRESHOLD: f64 = 30.0;
+const REMOVE_THRESHOLD: f64 = 60.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlacementMode {
@@ -173,7 +173,7 @@ pub fn remove_marker(
 // ---------------------------------------------------------------------------
 
 /// Build the full SVG content as a string for reliable rendering.
-/// Positions are in native map-image pixel space (1024×888).
+/// Positions are in native map-image pixel space (2048×1776).
 #[allow(clippy::too_many_arguments)]
 fn build_svg_content(
     guns: &[(f64, f64)],
@@ -214,14 +214,14 @@ fn build_grid_lines(svg: &mut String) {
     for col in 0..=grid::GRID_COLS {
         let x = grid::grid_col_px(col);
         svg.push_str(&format!(
-            r#"<line x1="{x}" y1="0" x2="{x}" y2="{}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>"#,
+            r#"<line x1="{x}" y1="0" x2="{x}" y2="{}" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>"#,
             grid::MAP_HEIGHT_PX
         ));
     }
     for row in 0..=grid::GRID_ROWS {
         let y = grid::grid_row_px(row);
         svg.push_str(&format!(
-            r#"<line x1="0" y1="{y}" x2="{}" y2="{y}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>"#,
+            r#"<line x1="0" y1="{y}" x2="{}" y2="{y}" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>"#,
             grid::MAP_WIDTH_PX
         ));
     }
@@ -233,15 +233,15 @@ fn build_grid_labels(svg: &mut String) {
         let x = col as f64 * col_step + col_step / 2.0;
         let letter = grid::col_letter(col);
         svg.push_str(&format!(
-            r#"<text x="{x}" y="12" fill="rgba(255,255,255,0.45)" font-size="9" font-family="monospace" font-weight="600" text-anchor="middle" dominant-baseline="central">{letter}</text>"#
+            r#"<text x="{x}" y="24" fill="rgba(255,255,255,0.45)" font-size="18" font-family="monospace" font-weight="600" text-anchor="middle" dominant-baseline="central">{letter}</text>"#
         ));
     }
     let row_step = grid::MAP_HEIGHT_PX / grid::GRID_ROWS as f64;
     for row in 0..grid::GRID_ROWS {
-        let y = row as f64 * row_step + row_step / 2.0 + 4.0;
+        let y = row as f64 * row_step + row_step / 2.0 + 8.0;
         let num = row + 1;
         svg.push_str(&format!(
-            r#"<text x="4" y="{y}" fill="rgba(255,255,255,0.45)" font-size="9" font-family="monospace" font-weight="600" text-anchor="start" dominant-baseline="central">{num}</text>"#
+            r#"<text x="8" y="{y}" fill="rgba(255,255,255,0.45)" font-size="18" font-family="monospace" font-weight="600" text-anchor="start" dominant-baseline="central">{num}</text>"#
         ));
     }
 }
@@ -257,7 +257,7 @@ fn build_keypad_lines(svg: &mut String) {
         for i in 1..3 {
             let x = x0 + third_w * i as f64;
             svg.push_str(&format!(
-                r#"<line x1="{x}" y1="0" x2="{x}" y2="{}" stroke="rgba(255,255,255,0.08)" stroke-width="0.3"/>"#,
+                r#"<line x1="{x}" y1="0" x2="{x}" y2="{}" stroke="rgba(255,255,255,0.08)" stroke-width="0.6"/>"#,
                 grid::MAP_HEIGHT_PX
             ));
         }
@@ -267,7 +267,7 @@ fn build_keypad_lines(svg: &mut String) {
         for i in 1..3 {
             let y = y0 + third_h * i as f64;
             svg.push_str(&format!(
-                r#"<line x1="0" y1="{y}" x2="{}" y2="{y}" stroke="rgba(255,255,255,0.08)" stroke-width="0.3"/>"#,
+                r#"<line x1="0" y1="{y}" x2="{}" y2="{y}" stroke="rgba(255,255,255,0.08)" stroke-width="0.6"/>"#,
                 grid::MAP_WIDTH_PX
             ));
         }
@@ -292,7 +292,7 @@ fn build_keypad_labels(svg: &mut String) {
                     let cx = x0 + third_w * kc as f64 + third_w / 2.0;
                     let cy = y0 + third_h * kr as f64 + third_h / 2.0;
                     svg.push_str(&format!(
-                        r#"<text x="{cx}" y="{cy}" fill="rgba(255,255,255,0.2)" font-size="5" font-family="monospace" text-anchor="middle" dominant-baseline="central">{label}</text>"#
+                        r#"<text x="{cx}" y="{cy}" fill="rgba(255,255,255,0.2)" font-size="10" font-family="monospace" text-anchor="middle" dominant-baseline="central">{label}</text>"#
                     ));
                 }
             }
@@ -312,14 +312,14 @@ fn build_range_circles(
         };
         let s = 1.0 / zoom.min(5.0);
         let max_r = coords::meters_to_image_px(w.max_range);
-        let sw1 = 1.5 * s;
+        let sw1 = 3.0 * s;
         svg.push_str(&format!(
             r##"<circle cx="{gx}" cy="{gy}" r="{max_r}" fill="rgba(78,204,163,0.06)" stroke="#4ecca3" stroke-width="{sw1}" stroke-opacity="0.6"/>"##
         ));
         let min_r = coords::meters_to_image_px(w.min_range);
-        let sw2 = 1.0 * s;
-        let da1 = 4.0 * s;
-        let da2 = 3.0 * s;
+        let sw2 = 2.0 * s;
+        let da1 = 8.0 * s;
+        let da2 = 6.0 * s;
         svg.push_str(&format!(
             r##"<circle cx="{gx}" cy="{gy}" r="{min_r}" fill="rgba(233,69,96,0.06)" stroke="#e94560" stroke-width="{sw2}" stroke-dasharray="{da1} {da2}" stroke-opacity="0.5"/>"##
         ));
@@ -338,9 +338,9 @@ fn build_firing_lines(
         if let Some(ti) = target_idx {
             if let Some(&(tx, ty)) = targets.get(ti) {
                 let s = 1.0 / zoom.min(5.0);
-                let sw = 1.5 * s;
-                let da1 = 6.0 * s;
-                let da2 = 4.0 * s;
+                let sw = 3.0 * s;
+                let da1 = 12.0 * s;
+                let da2 = 8.0 * s;
                 svg.push_str(&format!(
                     r#"<line x1="{gx}" y1="{gy}" x2="{tx}" y2="{ty}" stroke="rgba(233,69,96,0.7)" stroke-width="{sw}" stroke-dasharray="{da1} {da2}"/>"#
                 ));
@@ -364,9 +364,9 @@ fn build_accuracy_circles(
         if let (Some(ti), Some(acc_r)) = (target_idx, acc_r) {
             if let Some(&(tx, ty)) = targets.get(ti) {
                 let s = 1.0 / zoom.min(5.0);
-                let sw = s;
-                let da1 = 3.0 * s;
-                let da2 = 2.0 * s;
+                let sw = 2.0 * s;
+                let da1 = 6.0 * s;
+                let da2 = 4.0 * s;
                 svg.push_str(&format!(
                     r##"<circle cx="{tx}" cy="{ty}" r="{acc_r}" fill="rgba(233,69,96,0.15)" stroke="#e94560" stroke-width="{sw}" stroke-dasharray="{da1} {da2}"/>"##
                 ));
@@ -393,11 +393,11 @@ fn build_gun_markers(
     let total = guns.len();
     for (i, &(gx, gy)) in guns.iter().enumerate() {
         let s = 1.0 / zoom.min(5.0);
-        let r = 6.0 * s;
-        let sw = 1.5 * s;
-        let fs = 8.0 * s;
-        let ty = gy - 10.0 * s;
-        let tsw = 2.0 * s;
+        let r = 12.0 * s;
+        let sw = 3.0 * s;
+        let fs = 16.0 * s;
+        let ty = gy - 20.0 * s;
+        let tsw = 4.0 * s;
         let label = marker_label("GUN", i, total);
         svg.push_str(&format!(
             r##"<circle cx="{gx}" cy="{gy}" r="{r}" fill="#4ecca3" stroke="white" stroke-width="{sw}"/>"##
@@ -425,12 +425,12 @@ fn build_target_markers(
     let total = targets.len();
     for (i, &(tx, ty)) in targets.iter().enumerate() {
         let s = 1.0 / zoom.min(5.0);
-        let arm = 8.0 * s;
-        let sw = 1.5 * s;
-        let r = 4.0 * s;
-        let fs = 8.0 * s;
-        let label_y = ty - 12.0 * s;
-        let tsw = 2.0 * s;
+        let arm = 16.0 * s;
+        let sw = 3.0 * s;
+        let r = 8.0 * s;
+        let fs = 16.0 * s;
+        let label_y = ty - 24.0 * s;
+        let tsw = 4.0 * s;
         let label = marker_label("TARGET", i, total);
         svg.push_str(&format!(
             r##"<line x1="{}" y1="{ty}" x2="{}" y2="{ty}" stroke="#e94560" stroke-width="{sw}"/>"##,
@@ -468,11 +468,11 @@ fn build_spotter_markers(
     let total = spotters.len();
     for (i, &(sx, sy)) in spotters.iter().enumerate() {
         let s = 1.0 / zoom.min(5.0);
-        let r = 5.0 * s;
-        let sw = 1.5 * s;
-        let fs = 8.0 * s;
-        let label_y = sy - 10.0 * s;
-        let tsw = 2.0 * s;
+        let r = 10.0 * s;
+        let sw = 3.0 * s;
+        let fs = 16.0 * s;
+        let label_y = sy - 20.0 * s;
+        let tsw = 4.0 * s;
         let label = marker_label("SPOTTER", i, total);
         svg.push_str(&format!(
             r##"<circle cx="{sx}" cy="{sy}" r="{r}" fill="#7ec8e3" stroke="white" stroke-width="{sw}"/>"##
@@ -493,10 +493,10 @@ fn build_spotter_markers(
 
 /// Emit an animated dashed selection ring around a marker.
 fn build_selection_ring(svg: &mut String, cx: f64, cy: f64, s: f64) {
-    let r = 12.0 * s;
-    let sw = 1.5 * s;
-    let da1 = 3.0 * s;
-    let da2 = 2.0 * s;
+    let r = 24.0 * s;
+    let sw = 3.0 * s;
+    let da1 = 6.0 * s;
+    let da2 = 4.0 * s;
     svg.push_str(&format!(
         r##"<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="white" stroke-width="{sw}" stroke-dasharray="{da1} {da2}" opacity="0.9"><animate attributeName="opacity" values="0.5;1;0.5" dur="1.2s" repeatCount="indefinite"/></circle>"##
     ));
@@ -1059,8 +1059,8 @@ mod tests {
     #[test]
     fn test_clamp_pan_zoom1_map_fits_in_container() {
         // Container is taller than the map: no panning needed
-        // container_w=1024, image_h = 1024*(888/1024) = 888, container_h=1000 > 888
-        let (px, py) = clamp_pan(0.0, 0.0, 1.0, 1024.0, 1000.0);
+        // container_w=2048, image_h = 2048*(1776/2048) = 1776, container_h=2000 > 1776
+        let (px, py) = clamp_pan(0.0, 0.0, 1.0, 2048.0, 2000.0);
         assert!((px - 0.0).abs() < 0.01);
         assert!((py - 0.0).abs() < 0.01);
     }
@@ -1068,12 +1068,12 @@ mod tests {
     #[test]
     fn test_clamp_pan_zoom1_map_taller_than_container() {
         // Wide container: image renders taller than container
-        // container_w=1600, image_h = 1600*(888/1024) ≈ 1387.5, container_h=1000
-        // min_pan_y = -(1387.5 - 1000) = -387.5
-        let (_, py) = clamp_pan(0.0, -200.0, 1.0, 1600.0, 1000.0);
-        assert!((py - (-200.0)).abs() < 0.01, "Should allow panning down");
-        let (_, py) = clamp_pan(0.0, -500.0, 1.0, 1600.0, 1000.0);
-        let min_y = -(1600.0 * (grid::MAP_HEIGHT_PX / grid::MAP_WIDTH_PX) - 1000.0);
+        // container_w=3200, image_h = 3200*(1776/2048) ≈ 2775, container_h=2000
+        // min_pan_y = -(2775 - 2000) = -775
+        let (_, py) = clamp_pan(0.0, -400.0, 1.0, 3200.0, 2000.0);
+        assert!((py - (-400.0)).abs() < 0.01, "Should allow panning down");
+        let (_, py) = clamp_pan(0.0, -1000.0, 1.0, 3200.0, 2000.0);
+        let min_y = -(3200.0 * (grid::MAP_HEIGHT_PX / grid::MAP_WIDTH_PX) - 2000.0);
         assert!((py - min_y).abs() < 0.01, "Should clamp at min_pan_y");
     }
 

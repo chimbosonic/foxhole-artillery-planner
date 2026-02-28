@@ -400,7 +400,7 @@ test.describe("Foxhole Artillery Planner", () => {
 
     // SVG should contain a dashed line (firing line has stroke-dasharray)
     const svg = page.locator(".map-container svg");
-    const dashedLines = svg.locator('line[stroke-dasharray="6 4"]');
+    const dashedLines = svg.locator('line[stroke-dasharray="12 8"]');
     await expect(dashedLines).toHaveCount(1);
   });
 
