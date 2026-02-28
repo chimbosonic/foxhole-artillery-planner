@@ -915,3 +915,148 @@ test.describe("Foxhole Artillery Planner", () => {
     }
   });
 });
+
+test.describe("Gun placement tracking", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await page.waitForSelector(".app", { timeout: 15_000 });
+  });
+
+  test("placing a gun increments placement stats", async ({ page }) => {
+    // Select a weapon first so the gun has a slug to track
+    const weaponSelect = page
+      .locator('.panel:has(h3:text("Active Weapon")) select')
+      .first();
+    const firstWeapon = weaponSelect.locator("optgroup option").first();
+    const weaponSlug = await firstWeapon.getAttribute("value");
+    expect(weaponSlug).toBeTruthy();
+    await weaponSelect.selectOption(weaponSlug!);
+
+    // Place a gun on the map
+    await page.locator(".placement-mode button", { hasText: "Gun" }).click();
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await mapContainer.click({ position: { x: box!.width / 2, y: box!.height / 2 } });
+
+    // Wait for the fire-and-forget tracking call to complete
+    await page.waitForTimeout(1000);
+
+    // Query stats via GraphQL
+    const resp = await page.request.post("/graphql", {
+      data: {
+        query: `{ stats { gunPlacements { weaponSlug count } } }`,
+      },
+    });
+    const json = await resp.json();
+    const placements = json.data.stats.gunPlacements;
+    const entry = placements.find((p: any) => p.weaponSlug === weaponSlug);
+    expect(entry).toBeTruthy();
+    expect(entry.count).toBeGreaterThanOrEqual(1);
+  });
+
+  test("stats show per-faction totals", async ({ page }) => {
+    // Find a Colonial weapon and a Warden weapon
+    const weaponSelect = page
+      .locator('.panel:has(h3:text("Active Weapon")) select')
+      .first();
+    const colonialWeapon = weaponSelect.locator('optgroup[label="Colonial"] option').first();
+    const wardenWeapon = weaponSelect.locator('optgroup[label="Warden"] option').first();
+
+    const colonialSlug = await colonialWeapon.getAttribute("value");
+    const wardenSlug = await wardenWeapon.getAttribute("value");
+    expect(colonialSlug).toBeTruthy();
+    expect(wardenSlug).toBeTruthy();
+
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+
+    // Place a Colonial gun
+    await weaponSelect.selectOption(colonialSlug!);
+    await page.locator(".placement-mode button", { hasText: "Gun" }).click();
+    await mapContainer.click({ position: { x: box!.width * 0.3, y: box!.height * 0.5 } });
+
+    // Place a Warden gun (re-select Gun mode since auto-cycle switches to Target)
+    await weaponSelect.selectOption(wardenSlug!);
+    await page.locator(".placement-mode button", { hasText: "Gun" }).click();
+    await mapContainer.click({ position: { x: box!.width * 0.6, y: box!.height * 0.5 } });
+
+    await page.waitForTimeout(1000);
+
+    const resp = await page.request.post("/graphql", {
+      data: {
+        query: `{ stats { gunPlacementTotals { colonial warden total } } }`,
+      },
+    });
+    const json = await resp.json();
+    const totals = json.data.stats.gunPlacementTotals;
+    expect(totals.colonial).toBeGreaterThanOrEqual(1);
+    expect(totals.warden).toBeGreaterThanOrEqual(1);
+    expect(totals.total).toBeGreaterThanOrEqual(2);
+  });
+
+  test("stats include weapon display name and faction", async ({ page }) => {
+    const weaponSelect = page
+      .locator('.panel:has(h3:text("Active Weapon")) select')
+      .first();
+    const firstWeapon = weaponSelect.locator("optgroup option").first();
+    const weaponSlug = await firstWeapon.getAttribute("value");
+    expect(weaponSlug).toBeTruthy();
+    await weaponSelect.selectOption(weaponSlug!);
+
+    // Place a gun
+    await page.locator(".placement-mode button", { hasText: "Gun" }).click();
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await mapContainer.click({ position: { x: box!.width / 2, y: box!.height / 2 } });
+
+    await page.waitForTimeout(1000);
+
+    const resp = await page.request.post("/graphql", {
+      data: {
+        query: `{ stats { gunPlacements { weaponSlug displayName faction count } } }`,
+      },
+    });
+    const json = await resp.json();
+    const placements = json.data.stats.gunPlacements;
+    const entry = placements.find((p: any) => p.weaponSlug === weaponSlug);
+    expect(entry).toBeTruthy();
+    expect(entry.displayName).toBeTruthy();
+    expect(entry.displayName.length).toBeGreaterThan(0);
+    expect(["COLONIAL", "WARDEN", "BOTH"]).toContain(entry.faction);
+    expect(entry.count).toBeGreaterThanOrEqual(1);
+  });
+
+  test("placing a gun without a weapon tracks as unassigned", async ({ page }) => {
+    // Ensure no weapon is selected (default empty)
+    const weaponSelect = page
+      .locator('.panel:has(h3:text("Active Weapon")) select')
+      .first();
+    await weaponSelect.selectOption("");
+
+    // Place a gun on the map
+    await page.locator(".placement-mode button", { hasText: "Gun" }).click();
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await mapContainer.click({ position: { x: box!.width / 2, y: box!.height / 2 } });
+
+    await page.waitForTimeout(1000);
+
+    // Query stats and verify "unassigned" entry exists
+    const resp = await page.request.post("/graphql", {
+      data: {
+        query: `{ stats { gunPlacements { weaponSlug displayName faction count } } }`,
+      },
+    });
+    const json = await resp.json();
+    const placements = json.data.stats.gunPlacements;
+    const entry = placements.find((p: any) => p.weaponSlug === "unassigned");
+    expect(entry).toBeTruthy();
+    expect(entry.displayName).toBe("Unassigned");
+    expect(entry.faction).toBe("BOTH");
+    expect(entry.count).toBeGreaterThanOrEqual(1);
+  });
+});

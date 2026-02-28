@@ -1,9 +1,10 @@
 use foxhole_shared::models::Plan;
-use redb::{Database, ReadableDatabase, ReadableTableMetadata, TableDefinition};
+use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 const PLANS_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("plans");
+const GUN_PLACEMENTS_TABLE: TableDefinition<&str, u64> = TableDefinition::new("gun_placements");
 
 pub struct Storage {
     db: Database,
@@ -15,14 +16,18 @@ impl Storage {
         let db = Database::create(path)
             .unwrap_or_else(|e| panic!("Failed to open database at {}: {}", path.display(), e));
 
-        // Ensure table exists
+        // Ensure tables exist
         let write_txn = db.begin_write().expect("Failed to begin write txn");
         {
             let _ = write_txn.open_table(PLANS_TABLE);
+            let _ = write_txn.open_table(GUN_PLACEMENTS_TABLE);
         }
         write_txn.commit().expect("Failed to commit initial txn");
 
-        Arc::new(Storage { db, path: path.to_path_buf() })
+        Arc::new(Storage {
+            db,
+            path: path.to_path_buf(),
+        })
     }
 
     pub fn save_plan(&self, plan: &Plan) -> Result<(), String> {
@@ -31,7 +36,9 @@ impl Storage {
 
         let write_txn = self.db.begin_write().map_err(|e| e.to_string())?;
         {
-            let mut table = write_txn.open_table(PLANS_TABLE).map_err(|e| e.to_string())?;
+            let mut table = write_txn
+                .open_table(PLANS_TABLE)
+                .map_err(|e| e.to_string())?;
             table
                 .insert(id_str.as_str(), json.as_slice())
                 .map_err(|e| e.to_string())?;
@@ -42,7 +49,9 @@ impl Storage {
 
     pub fn get_plan(&self, id: &str) -> Result<Option<Plan>, String> {
         let read_txn = self.db.begin_read().map_err(|e| e.to_string())?;
-        let table = read_txn.open_table(PLANS_TABLE).map_err(|e| e.to_string())?;
+        let table = read_txn
+            .open_table(PLANS_TABLE)
+            .map_err(|e| e.to_string())?;
 
         match table.get(id).map_err(|e| e.to_string())? {
             Some(value) => {
@@ -57,7 +66,9 @@ impl Storage {
 
     pub fn count_plans(&self) -> Result<u64, String> {
         let read_txn = self.db.begin_read().map_err(|e| e.to_string())?;
-        let table = read_txn.open_table(PLANS_TABLE).map_err(|e| e.to_string())?;
+        let table = read_txn
+            .open_table(PLANS_TABLE)
+            .map_err(|e| e.to_string())?;
         table.len().map_err(|e| e.to_string())
     }
 
@@ -70,11 +81,96 @@ impl Storage {
     pub fn delete_plan(&self, id: &str) -> Result<bool, String> {
         let write_txn = self.db.begin_write().map_err(|e| e.to_string())?;
         let removed = {
-            let mut table = write_txn.open_table(PLANS_TABLE).map_err(|e| e.to_string())?;
+            let mut table = write_txn
+                .open_table(PLANS_TABLE)
+                .map_err(|e| e.to_string())?;
             let result = table.remove(id).map_err(|e| e.to_string())?;
             result.is_some()
         };
         write_txn.commit().map_err(|e| e.to_string())?;
         Ok(removed)
+    }
+
+    pub fn increment_gun_placement(&self, weapon_slug: &str) -> Result<(), String> {
+        let write_txn = self.db.begin_write().map_err(|e| e.to_string())?;
+        {
+            let mut table = write_txn
+                .open_table(GUN_PLACEMENTS_TABLE)
+                .map_err(|e| e.to_string())?;
+            let current = table
+                .get(weapon_slug)
+                .map_err(|e| e.to_string())?
+                .map(|v| v.value())
+                .unwrap_or(0);
+            table
+                .insert(weapon_slug, current + 1)
+                .map_err(|e| e.to_string())?;
+        }
+        write_txn.commit().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn get_gun_placement_counts(&self) -> Result<Vec<(String, u64)>, String> {
+        let read_txn = self.db.begin_read().map_err(|e| e.to_string())?;
+        let table = read_txn
+            .open_table(GUN_PLACEMENTS_TABLE)
+            .map_err(|e| e.to_string())?;
+        let mut result = Vec::new();
+        for entry in table.iter().map_err(|e| e.to_string())? {
+            let (key, value) = entry.map_err(|e| e.to_string())?;
+            result.push((key.value().to_string(), value.value()));
+        }
+        Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_storage() -> (Arc<Storage>, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.redb");
+        let storage = Storage::open(&path);
+        (storage, dir)
+    }
+
+    #[test]
+    fn test_increment_gun_placement_new_slug() {
+        let (storage, _dir) = temp_storage();
+        storage.increment_gun_placement("mortar").unwrap();
+        let counts = storage.get_gun_placement_counts().unwrap();
+        assert_eq!(counts, vec![("mortar".to_string(), 1)]);
+    }
+
+    #[test]
+    fn test_increment_gun_placement_accumulates() {
+        let (storage, _dir) = temp_storage();
+        for _ in 0..3 {
+            storage.increment_gun_placement("storm-cannon").unwrap();
+        }
+        let counts = storage.get_gun_placement_counts().unwrap();
+        assert_eq!(counts, vec![("storm-cannon".to_string(), 3)]);
+    }
+
+    #[test]
+    fn test_increment_multiple_slugs() {
+        let (storage, _dir) = temp_storage();
+        storage.increment_gun_placement("mortar").unwrap();
+        storage.increment_gun_placement("mortar").unwrap();
+        storage.increment_gun_placement("storm-cannon").unwrap();
+        let mut counts = storage.get_gun_placement_counts().unwrap();
+        counts.sort_by(|a, b| a.0.cmp(&b.0));
+        assert_eq!(
+            counts,
+            vec![("mortar".to_string(), 2), ("storm-cannon".to_string(), 1),]
+        );
+    }
+
+    #[test]
+    fn test_get_gun_placement_counts_empty() {
+        let (storage, _dir) = temp_storage();
+        let counts = storage.get_gun_placement_counts().unwrap();
+        assert!(counts.is_empty());
     }
 }

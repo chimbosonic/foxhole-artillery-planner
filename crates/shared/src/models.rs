@@ -3,6 +3,9 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "uuid-support")]
 use uuid::Uuid;
 
+/// Weapon slug used for guns placed without a weapon selection.
+pub const UNASSIGNED_WEAPON: &str = "unassigned";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Faction {
     Colonial,

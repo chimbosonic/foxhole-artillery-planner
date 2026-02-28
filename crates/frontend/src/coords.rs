@@ -2,7 +2,12 @@ use foxhole_shared::grid;
 
 /// Convert client (viewport) coordinates to container-relative pixel coordinates.
 #[cfg(test)]
-pub fn client_to_container(client_x: f64, client_y: f64, rect_left: f64, rect_top: f64) -> (f64, f64) {
+pub fn client_to_container(
+    client_x: f64,
+    client_y: f64,
+    rect_left: f64,
+    rect_top: f64,
+) -> (f64, f64) {
     (client_x - rect_left, client_y - rect_top)
 }
 

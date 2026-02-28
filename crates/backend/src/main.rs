@@ -14,10 +14,7 @@ use tower_http::set_header::SetResponseHeaderLayer;
 
 use graphql::Schema;
 
-async fn graphql_handler(
-    State(schema): State<Schema>,
-    req: GraphQLRequest,
-) -> GraphQLResponse {
+async fn graphql_handler(State(schema): State<Schema>, req: GraphQLRequest) -> GraphQLResponse {
     schema.execute(req.into_inner()).await.into()
 }
 
@@ -49,9 +46,18 @@ const CACHE_IMMUTABLE: &str = "public, max-age=31536000, immutable";
 fn build_app(schema: Schema) -> Router {
     // Static file routers are stateless — merge them before adding app state
     let static_files = Router::new()
-        .nest("/static", cached_static_router(Path::new("assets"), CACHE_1DAY))
-        .nest("/dist", cached_static_router(Path::new("dist"), CACHE_IMMUTABLE))
-        .nest("/assets", cached_static_router(Path::new("dist/assets"), CACHE_IMMUTABLE));
+        .nest(
+            "/static",
+            cached_static_router(Path::new("assets"), CACHE_1DAY),
+        )
+        .nest(
+            "/dist",
+            cached_static_router(Path::new("dist"), CACHE_IMMUTABLE),
+        )
+        .nest(
+            "/assets",
+            cached_static_router(Path::new("dist/assets"), CACHE_IMMUTABLE),
+        );
 
     Router::new()
         .route("/graphql", get(graphiql).post(graphql_handler))
@@ -109,15 +115,14 @@ mod tests {
     use tower::ServiceExt;
 
     /// Build a test app that serves files from the given temp directories.
-    fn test_app(
-        assets_dir: &Path,
-        dist_dir: &Path,
-        dist_assets_dir: &Path,
-    ) -> Router {
+    fn test_app(assets_dir: &Path, dist_dir: &Path, dist_assets_dir: &Path) -> Router {
         Router::new()
             .nest("/static", cached_static_router(assets_dir, CACHE_1DAY))
             .nest("/dist", cached_static_router(dist_dir, CACHE_IMMUTABLE))
-            .nest("/assets", cached_static_router(dist_assets_dir, CACHE_IMMUTABLE))
+            .nest(
+                "/assets",
+                cached_static_router(dist_assets_dir, CACHE_IMMUTABLE),
+            )
     }
 
     /// Create a temp dir with a test file and return the dir path.
@@ -252,8 +257,18 @@ mod tests {
             .await
             .unwrap();
 
-        let static_cc = static_resp.headers().get("cache-control").unwrap().to_str().unwrap();
-        let dist_cc = dist_resp.headers().get("cache-control").unwrap().to_str().unwrap();
+        let static_cc = static_resp
+            .headers()
+            .get("cache-control")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        let dist_cc = dist_resp
+            .headers()
+            .get("cache-control")
+            .unwrap()
+            .to_str()
+            .unwrap();
 
         assert_ne!(static_cc, dist_cc);
         assert!(static_cc.contains("max-age=86400"));

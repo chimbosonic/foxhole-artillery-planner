@@ -16,7 +16,11 @@ pub fn azimuth(gun: Position, target: Position) -> f64 {
     // atan2(east, south-negated) gives clockwise-from-north
     let rad = dx.atan2(-dy);
     let deg = rad.to_degrees();
-    if deg < 0.0 { deg + 360.0 } else { deg }
+    if deg < 0.0 {
+        deg + 360.0
+    } else {
+        deg
+    }
 }
 
 /// Interpolate accuracy radius for a given distance.
@@ -200,11 +204,17 @@ mod tests {
         let gun = Position { x: 0.0, y: 0.0 };
         let target = Position { x: 0.0, y: -300.0 }; // 300m north = max range
 
-        let wind5 = WindInput { direction: 270.0, strength: 5 };
+        let wind5 = WindInput {
+            direction: 270.0,
+            strength: 5,
+        };
         let sol5 = firing_solution(gun, target, &w, Some(&wind5));
         assert!((sol5.wind_offset_meters.unwrap() - 30.0).abs() < 1e-6);
 
-        let wind3 = WindInput { direction: 270.0, strength: 3 };
+        let wind3 = WindInput {
+            direction: 270.0,
+            strength: 3,
+        };
         let sol3 = firing_solution(gun, target, &w, Some(&wind3));
         assert!((sol3.wind_offset_meters.unwrap() - 18.0).abs() < 1e-6);
     }
@@ -216,7 +226,10 @@ mod tests {
         let w = test_weapon();
         let gun = Position { x: 0.0, y: 0.0 };
 
-        let wind = WindInput { direction: 270.0, strength: 5 };
+        let wind = WindInput {
+            direction: 270.0,
+            strength: 5,
+        };
 
         let target_min = Position { x: 0.0, y: -100.0 };
         let sol_min = firing_solution(gun, target_min, &w, Some(&wind));

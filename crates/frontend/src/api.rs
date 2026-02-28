@@ -41,9 +41,13 @@ pub fn build_create_plan_variables(
     wind_strength: Option<u32>,
 ) -> serde_json::Value {
     let to_json = |positions: &[(f64, f64)]| -> serde_json::Value {
-        positions.iter().map(|(x, y)| serde_json::json!({"x": x, "y": y})).collect()
+        positions
+            .iter()
+            .map(|(x, y)| serde_json::json!({"x": x, "y": y}))
+            .collect()
     };
-    let indices_json: serde_json::Value = gun_target_indices.iter()
+    let indices_json: serde_json::Value = gun_target_indices
+        .iter()
         .map(|o| match o {
             Some(v) => serde_json::json!(*v as i32),
             None => serde_json::Value::Null,
@@ -226,7 +230,13 @@ pub async fn calculate(
     wind_strength: Option<u32>,
 ) -> Result<FiringSolutionData, String> {
     let variables = build_calculate_variables(
-        gun_x, gun_y, target_x, target_y, weapon_id, wind_direction, wind_strength,
+        gun_x,
+        gun_y,
+        target_x,
+        target_y,
+        weapon_id,
+        wind_direction,
+        wind_strength,
     );
 
     let resp: CalculateResponse = query(
@@ -261,8 +271,15 @@ pub async fn create_plan(
     wind_strength: Option<u32>,
 ) -> Result<PlanData, String> {
     let variables = build_create_plan_variables(
-        name, map_id, weapon_ids, gun_positions, target_positions, spotter_positions,
-        gun_target_indices, wind_direction, wind_strength,
+        name,
+        map_id,
+        weapon_ids,
+        gun_positions,
+        target_positions,
+        spotter_positions,
+        gun_target_indices,
+        wind_direction,
+        wind_strength,
     );
 
     let resp: CreatePlanResponse = query(
@@ -282,6 +299,36 @@ pub async fn create_plan(
 #[derive(Deserialize)]
 pub struct FetchPlanResponse {
     pub plan: Option<PlanData>,
+}
+
+#[derive(Deserialize)]
+pub struct TrackGunPlacementResponse {
+    #[serde(rename = "trackGunPlacement")]
+    pub track_gun_placement: bool,
+}
+
+/// Fire-and-forget gun placement tracking. Maps empty slugs to "unassigned".
+pub fn track_gun_placement_fire(weapon_slug: &str) {
+    let slug = if weapon_slug.is_empty() {
+        foxhole_shared::models::UNASSIGNED_WEAPON.to_string()
+    } else {
+        weapon_slug.to_string()
+    };
+    wasm_bindgen_futures::spawn_local(async move {
+        let _ = track_gun_placement(&slug).await;
+    });
+}
+
+pub async fn track_gun_placement(weapon_slug: &str) -> Result<bool, String> {
+    let variables = serde_json::json!({ "weaponSlug": weapon_slug });
+    let resp: TrackGunPlacementResponse = query(
+        r#"mutation TrackGunPlacement($weaponSlug: String!) {
+            trackGunPlacement(weaponSlug: $weaponSlug)
+        }"#,
+        Some(variables),
+    )
+    .await?;
+    Ok(resp.track_gun_placement)
 }
 
 pub async fn fetch_plan(id: &str) -> Result<Option<PlanData>, String> {
@@ -426,7 +473,8 @@ mod tests {
 
     #[test]
     fn test_build_calculate_variables_with_wind() {
-        let vars = build_calculate_variables(0.0, 0.0, 100.0, 100.0, "mortar", Some(270.0), Some(3));
+        let vars =
+            build_calculate_variables(0.0, 0.0, 100.0, 100.0, "mortar", Some(270.0), Some(3));
         assert_eq!(vars["input"]["wind"]["direction"], 270.0);
         assert_eq!(vars["input"]["wind"]["strength"], 3);
     }
@@ -440,10 +488,15 @@ mod tests {
     #[test]
     fn test_build_create_plan_variables() {
         let vars = build_create_plan_variables(
-            "My Plan", "deadlands", &["storm-cannon".to_string()],
-            &[(10.0, 20.0)], &[(30.0, 40.0)], &[],
+            "My Plan",
+            "deadlands",
+            &["storm-cannon".to_string()],
+            &[(10.0, 20.0)],
+            &[(30.0, 40.0)],
+            &[],
             &[Some(0)],
-            Some(180.0), Some(2),
+            Some(180.0),
+            Some(2),
         );
         assert_eq!(vars["input"]["name"], "My Plan");
         assert_eq!(vars["input"]["mapId"], "deadlands");
@@ -458,23 +511,40 @@ mod tests {
     #[test]
     fn test_build_create_plan_variables_empty() {
         let vars = build_create_plan_variables(
-            "Empty Plan", "deadlands", &["mortar".to_string()],
-            &[], &[], &[], &[],
-            None, None,
+            "Empty Plan",
+            "deadlands",
+            &["mortar".to_string()],
+            &[],
+            &[],
+            &[],
+            &[],
+            None,
+            None,
         );
         assert_eq!(vars["input"]["gunPositions"].as_array().unwrap().len(), 0);
-        assert_eq!(vars["input"]["targetPositions"].as_array().unwrap().len(), 0);
-        assert_eq!(vars["input"]["gunTargetIndices"].as_array().unwrap().len(), 0);
+        assert_eq!(
+            vars["input"]["targetPositions"].as_array().unwrap().len(),
+            0
+        );
+        assert_eq!(
+            vars["input"]["gunTargetIndices"].as_array().unwrap().len(),
+            0
+        );
         assert!(vars["input"]["windDirection"].is_null());
     }
 
     #[test]
     fn test_build_create_plan_variables_mixed_pairings() {
         let vars = build_create_plan_variables(
-            "Mixed", "deadlands", &["mortar".to_string(), "mortar".to_string()],
-            &[(10.0, 20.0), (50.0, 60.0)], &[(30.0, 40.0)], &[],
+            "Mixed",
+            "deadlands",
+            &["mortar".to_string(), "mortar".to_string()],
+            &[(10.0, 20.0), (50.0, 60.0)],
+            &[(30.0, 40.0)],
+            &[],
             &[Some(0), None],
-            None, None,
+            None,
+            None,
         );
         assert_eq!(vars["input"]["gunTargetIndices"][0], 0);
         assert!(vars["input"]["gunTargetIndices"][1].is_null());
@@ -493,8 +563,27 @@ mod tests {
     #[test]
     fn test_build_plan_url_production() {
         assert_eq!(
-            build_plan_url("https://artillery.example.com", "550e8400-e29b-41d4-a716-446655440000"),
+            build_plan_url(
+                "https://artillery.example.com",
+                "550e8400-e29b-41d4-a716-446655440000"
+            ),
             "https://artillery.example.com/plan/550e8400-e29b-41d4-a716-446655440000"
         );
+    }
+
+    // --- Gun placement tracking ---
+
+    #[test]
+    fn test_track_gun_placement_response_deserializes() {
+        let json = r#"{"trackGunPlacement": true}"#;
+        let resp: TrackGunPlacementResponse = serde_json::from_str(json).unwrap();
+        assert!(resp.track_gun_placement);
+    }
+
+    #[test]
+    fn test_track_gun_placement_response_deserializes_false() {
+        let json = r#"{"trackGunPlacement": false}"#;
+        let resp: TrackGunPlacementResponse = serde_json::from_str(json).unwrap();
+        assert!(!resp.track_gun_placement);
     }
 }

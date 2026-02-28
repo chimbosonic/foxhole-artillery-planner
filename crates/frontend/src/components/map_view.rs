@@ -549,9 +549,13 @@ pub fn MapView(
     // Local closure to snapshot state before mutations
     let mut push_snapshot = move || {
         let snap = capture_snapshot(
-            &gun_positions, &target_positions, &spotter_positions,
-            &gun_weapon_ids, &gun_target_indices,
-            &wind_direction, &wind_strength,
+            &gun_positions,
+            &target_positions,
+            &spotter_positions,
+            &gun_weapon_ids,
+            &gun_target_indices,
+            &wind_direction,
+            &wind_strength,
         );
         push_undo(&mut undo_stack, &mut redo_stack, snap);
     };
@@ -770,13 +774,16 @@ pub fn MapView(
                         match mode {
                             PlacementMode::Gun => {
                                 gun_positions.write().push((img_x, img_y));
-                                gun_weapon_ids.write().push(selected_weapon_slug.read().clone());
+                                let slug = selected_weapon_slug.read().clone();
+                                gun_weapon_ids.write().push(slug.clone());
                                 // Auto-pair with first unpaired target
                                 let pairings_snap = gun_target_indices.read().clone();
                                 let targets_snap = target_positions.read().clone();
                                 let unpaired_target = (0..targets_snap.len())
                                     .find(|ti| !pairings_snap.contains(&Some(*ti)));
                                 gun_target_indices.write().push(unpaired_target);
+                                // Fire-and-forget tracking
+                                crate::api::track_gun_placement_fire(&slug);
                             }
                             PlacementMode::Target => {
                                 let targets_snap = target_positions.read().clone();

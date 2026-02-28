@@ -3,12 +3,15 @@ use dioxus::prelude::*;
 use crate::api::WeaponData;
 
 #[component]
-pub fn WeaponSelector(
-    weapons: Vec<WeaponData>,
-    selected_weapon: Signal<String>,
-) -> Element {
-    let colonial: Vec<&WeaponData> = weapons.iter().filter(|w| w.faction == "COLONIAL" || w.faction == "BOTH").collect();
-    let warden: Vec<&WeaponData> = weapons.iter().filter(|w| w.faction == "WARDEN" || w.faction == "BOTH").collect();
+pub fn WeaponSelector(weapons: Vec<WeaponData>, selected_weapon: Signal<String>) -> Element {
+    let colonial: Vec<&WeaponData> = weapons
+        .iter()
+        .filter(|w| w.faction == "COLONIAL" || w.faction == "BOTH")
+        .collect();
+    let warden: Vec<&WeaponData> = weapons
+        .iter()
+        .filter(|w| w.faction == "WARDEN" || w.faction == "BOTH")
+        .collect();
 
     rsx! {
         div { class: "panel",

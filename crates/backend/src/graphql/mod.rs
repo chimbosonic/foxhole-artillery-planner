@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_graphql::{Context, Enum, InputObject, Object, SimpleObject, ID};
 use foxhole_shared::{
     calc,
-    models::{self, Faction, Position, WindInput},
+    models::{self, Faction, Position, WindInput, UNASSIGNED_WEAPON},
 };
 
 use crate::assets::Assets;
@@ -100,10 +100,26 @@ impl From<models::Plan> for GqlPlan {
             name: p.name,
             map_id: p.map_id,
             weapon_ids: p.weapon_ids,
-            gun_positions: p.gun_positions.into_iter().map(|pos| GqlPosition { x: pos.x, y: pos.y }).collect(),
-            target_positions: p.target_positions.into_iter().map(|pos| GqlPosition { x: pos.x, y: pos.y }).collect(),
-            spotter_positions: p.spotter_positions.into_iter().map(|pos| GqlPosition { x: pos.x, y: pos.y }).collect(),
-            gun_target_indices: p.gun_target_indices.into_iter().map(|o| o.map(|v| v as i32)).collect(),
+            gun_positions: p
+                .gun_positions
+                .into_iter()
+                .map(|pos| GqlPosition { x: pos.x, y: pos.y })
+                .collect(),
+            target_positions: p
+                .target_positions
+                .into_iter()
+                .map(|pos| GqlPosition { x: pos.x, y: pos.y })
+                .collect(),
+            spotter_positions: p
+                .spotter_positions
+                .into_iter()
+                .map(|pos| GqlPosition { x: pos.x, y: pos.y })
+                .collect(),
+            gun_target_indices: p
+                .gun_target_indices
+                .into_iter()
+                .map(|o| o.map(|v| v as i32))
+                .collect(),
             wind_direction: p.wind_direction,
             wind_strength: p.wind_strength as u32,
             created_at: p.created_at,
@@ -113,9 +129,26 @@ impl From<models::Plan> for GqlPlan {
 }
 
 #[derive(SimpleObject)]
+pub struct GqlWeaponPlacementStat {
+    pub weapon_slug: String,
+    pub display_name: String,
+    pub faction: GqlFaction,
+    pub count: u64,
+}
+
+#[derive(SimpleObject)]
+pub struct GqlFactionPlacementStats {
+    pub colonial: u64,
+    pub warden: u64,
+    pub total: u64,
+}
+
+#[derive(SimpleObject)]
 pub struct GqlStats {
     pub total_plans: u64,
     pub db_size_bytes: u64,
+    pub gun_placements: Vec<GqlWeaponPlacementStat>,
+    pub gun_placement_totals: GqlFactionPlacementStats,
 }
 
 // Input types
@@ -173,11 +206,7 @@ pub struct QueryRoot;
 
 #[Object]
 impl QueryRoot {
-    async fn maps(
-        &self,
-        ctx: &Context<'_>,
-        active_only: Option<bool>,
-    ) -> Vec<GqlGameMap> {
+    async fn maps(&self, ctx: &Context<'_>, active_only: Option<bool>) -> Vec<GqlGameMap> {
         let assets = ctx.data::<Arc<Assets>>().unwrap();
         assets
             .maps
@@ -198,11 +227,7 @@ impl QueryRoot {
             .collect()
     }
 
-    async fn weapons(
-        &self,
-        ctx: &Context<'_>,
-        faction: Option<GqlFaction>,
-    ) -> Vec<GqlWeapon> {
+    async fn weapons(&self, ctx: &Context<'_>, faction: Option<GqlFaction>) -> Vec<GqlWeapon> {
         let assets = ctx.data::<Arc<Assets>>().unwrap();
         assets
             .weapons
@@ -236,7 +261,9 @@ impl QueryRoot {
         let assets = ctx.data::<Arc<Assets>>().unwrap();
         let weapon = assets
             .find_weapon_by_slug(&input.weapon_id)
-            .ok_or_else(|| async_graphql::Error::new(format!("Unknown weapon: {}", input.weapon_id)))?;
+            .ok_or_else(|| {
+                async_graphql::Error::new(format!("Unknown weapon: {}", input.weapon_id))
+            })?;
 
         let gun = Position {
             x: input.gun_position.x,
@@ -264,27 +291,63 @@ impl QueryRoot {
         })
     }
 
-    async fn plan(
-        &self,
-        ctx: &Context<'_>,
-        id: ID,
-    ) -> async_graphql::Result<Option<GqlPlan>> {
+    async fn plan(&self, ctx: &Context<'_>, id: ID) -> async_graphql::Result<Option<GqlPlan>> {
         let storage = ctx.data::<Arc<Storage>>().unwrap();
-        let plan = storage
-            .get_plan(&id)
-            .map_err(async_graphql::Error::new)?;
+        let plan = storage.get_plan(&id).map_err(async_graphql::Error::new)?;
         Ok(plan.map(GqlPlan::from))
     }
 
     async fn stats(&self, ctx: &Context<'_>) -> async_graphql::Result<GqlStats> {
         let storage = ctx.data::<Arc<Storage>>().unwrap();
-        let total_plans = storage
-            .count_plans()
+        let assets = ctx.data::<Arc<Assets>>().unwrap();
+        let total_plans = storage.count_plans().map_err(async_graphql::Error::new)?;
+        let db_size_bytes = storage.db_size_bytes().map_err(async_graphql::Error::new)?;
+
+        let raw_counts = storage
+            .get_gun_placement_counts()
             .map_err(async_graphql::Error::new)?;
-        let db_size_bytes = storage
-            .db_size_bytes()
-            .map_err(async_graphql::Error::new)?;
-        Ok(GqlStats { total_plans, db_size_bytes })
+
+        let mut colonial_total: u64 = 0;
+        let mut warden_total: u64 = 0;
+        let mut overall_total: u64 = 0;
+        let mut gun_placements = Vec::new();
+
+        for (slug, count) in raw_counts {
+            let (display_name, faction) = if slug == UNASSIGNED_WEAPON {
+                ("Unassigned".to_string(), Faction::Both)
+            } else {
+                match assets.find_weapon_by_slug(&slug) {
+                    Some(w) => (w.display_name.clone(), w.faction),
+                    None => (slug.clone(), Faction::Both),
+                }
+            };
+            match faction {
+                Faction::Colonial => colonial_total += count,
+                Faction::Warden => warden_total += count,
+                Faction::Both => {
+                    colonial_total += count;
+                    warden_total += count;
+                }
+            }
+            overall_total += count;
+            gun_placements.push(GqlWeaponPlacementStat {
+                weapon_slug: slug,
+                display_name,
+                faction: faction.into(),
+                count,
+            });
+        }
+
+        Ok(GqlStats {
+            total_plans,
+            db_size_bytes,
+            gun_placements,
+            gun_placement_totals: GqlFactionPlacementStats {
+                colonial: colonial_total,
+                warden: warden_total,
+                total: overall_total,
+            },
+        })
     }
 }
 
@@ -303,7 +366,10 @@ impl MutationRoot {
         let now = chrono::Utc::now().to_rfc3339();
 
         let to_positions = |v: Option<Vec<PositionInput>>| -> Vec<Position> {
-            v.unwrap_or_default().into_iter().map(|p| Position { x: p.x, y: p.y }).collect()
+            v.unwrap_or_default()
+                .into_iter()
+                .map(|p| Position { x: p.x, y: p.y })
+                .collect()
         };
 
         let plan = models::Plan {
@@ -317,8 +383,12 @@ impl MutationRoot {
             gun_positions: to_positions(input.gun_positions),
             target_positions: to_positions(input.target_positions),
             spotter_positions: to_positions(input.spotter_positions),
-            gun_target_indices: input.gun_target_indices.unwrap_or_default()
-                .into_iter().map(|o| o.map(|v| v as u32)).collect(),
+            gun_target_indices: input
+                .gun_target_indices
+                .unwrap_or_default()
+                .into_iter()
+                .map(|o| o.map(|v| v as u32))
+                .collect(),
             wind_direction: input.wind_direction,
             wind_strength: input.wind_strength.unwrap_or(0) as u8,
             created_at: now.clone(),
@@ -354,13 +424,22 @@ impl MutationRoot {
             plan.weapon_ids = weapon_ids;
         }
         if let Some(positions) = input.gun_positions {
-            plan.gun_positions = positions.into_iter().map(|p| Position { x: p.x, y: p.y }).collect();
+            plan.gun_positions = positions
+                .into_iter()
+                .map(|p| Position { x: p.x, y: p.y })
+                .collect();
         }
         if let Some(positions) = input.target_positions {
-            plan.target_positions = positions.into_iter().map(|p| Position { x: p.x, y: p.y }).collect();
+            plan.target_positions = positions
+                .into_iter()
+                .map(|p| Position { x: p.x, y: p.y })
+                .collect();
         }
         if let Some(positions) = input.spotter_positions {
-            plan.spotter_positions = positions.into_iter().map(|p| Position { x: p.x, y: p.y }).collect();
+            plan.spotter_positions = positions
+                .into_iter()
+                .map(|p| Position { x: p.x, y: p.y })
+                .collect();
         }
         if let Some(indices) = input.gun_target_indices {
             plan.gun_target_indices = indices.into_iter().map(|o| o.map(|v| v as u32)).collect();
@@ -381,15 +460,29 @@ impl MutationRoot {
         Ok(GqlPlan::from(plan))
     }
 
-    async fn delete_plan(
+    async fn delete_plan(&self, ctx: &Context<'_>, id: ID) -> async_graphql::Result<bool> {
+        let storage = ctx.data::<Arc<Storage>>().unwrap();
+        storage.delete_plan(&id).map_err(async_graphql::Error::new)
+    }
+
+    async fn track_gun_placement(
         &self,
         ctx: &Context<'_>,
-        id: ID,
+        weapon_slug: String,
     ) -> async_graphql::Result<bool> {
+        let assets = ctx.data::<Arc<Assets>>().unwrap();
+        // Allow "unassigned" for guns placed without a weapon
+        if weapon_slug != UNASSIGNED_WEAPON && assets.find_weapon_by_slug(&weapon_slug).is_none() {
+            return Err(async_graphql::Error::new(format!(
+                "Unknown weapon: {}",
+                weapon_slug
+            )));
+        }
         let storage = ctx.data::<Arc<Storage>>().unwrap();
         storage
-            .delete_plan(&id)
-            .map_err(async_graphql::Error::new)
+            .increment_gun_placement(&weapon_slug)
+            .map_err(async_graphql::Error::new)?;
+        Ok(true)
     }
 }
 

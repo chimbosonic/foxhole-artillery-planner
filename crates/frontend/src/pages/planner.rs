@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 use crate::api::{self, FiringSolutionData, MapData, WeaponData};
 use crate::components::calculation_display::CalculationDisplay;
 use crate::components::help_overlay::HelpOverlay;
-use crate::components::map_view::{MapView, PlacementMode, SelectedMarker, remove_marker};
+use crate::components::map_view::{remove_marker, MapView, PlacementMode, SelectedMarker};
 use crate::components::plan_panel::PlanPanel;
 use crate::components::weapon_selector::WeaponSelector;
 use crate::components::wind_input::WindInput;
@@ -86,9 +86,15 @@ pub fn push_undo(
 // ---------------------------------------------------------------------------
 
 fn is_input_focused() -> bool {
-    let Some(window) = web_sys::window() else { return false };
-    let Some(doc) = window.document() else { return false };
-    let Some(active) = doc.active_element() else { return false };
+    let Some(window) = web_sys::window() else {
+        return false;
+    };
+    let Some(doc) = window.document() else {
+        return false;
+    };
+    let Some(active) = doc.active_element() else {
+        return false;
+    };
     let tag = active.tag_name().to_uppercase();
     matches!(tag.as_str(), "INPUT" | "SELECT" | "TEXTAREA")
 }
@@ -153,13 +159,22 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     plan_name.set(plan.name);
                     // Plan stores meter coordinates, convert to image pixels
                     gun_positions.set(
-                        plan.gun_positions.iter().map(|p| coords::meters_to_map_px(p.x, p.y)).collect()
+                        plan.gun_positions
+                            .iter()
+                            .map(|p| coords::meters_to_map_px(p.x, p.y))
+                            .collect(),
                     );
                     target_positions.set(
-                        plan.target_positions.iter().map(|p| coords::meters_to_map_px(p.x, p.y)).collect()
+                        plan.target_positions
+                            .iter()
+                            .map(|p| coords::meters_to_map_px(p.x, p.y))
+                            .collect(),
                     );
                     spotter_positions.set(
-                        plan.spotter_positions.iter().map(|p| coords::meters_to_map_px(p.x, p.y)).collect()
+                        plan.spotter_positions
+                            .iter()
+                            .map(|p| coords::meters_to_map_px(p.x, p.y))
+                            .collect(),
                     );
                     // Load explicit pairings, or fall back to index-based for old plans
                     if plan.gun_target_indices.is_empty() {
@@ -170,9 +185,10 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                         gun_target_indices.set(indices);
                     } else {
                         gun_target_indices.set(
-                            plan.gun_target_indices.iter()
+                            plan.gun_target_indices
+                                .iter()
                                 .map(|o| o.map(|v| v as usize))
-                                .collect()
+                                .collect(),
                         );
                     }
                     if let Some(dir) = plan.wind_direction {
@@ -236,16 +252,25 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     let current_map = selected_map.read().clone();
 
     // Compute accuracy radii in image pixels for the map overlay (one per gun, using pairings)
-    let accuracy_radii_px: Vec<Option<f64>> = firing_solutions.read().iter().map(|sol| {
-        sol.as_ref().map(|s| coords::meters_to_image_px(s.accuracy_radius))
-    }).collect();
+    let accuracy_radii_px: Vec<Option<f64>> = firing_solutions
+        .read()
+        .iter()
+        .map(|sol| {
+            sol.as_ref()
+                .map(|s| coords::meters_to_image_px(s.accuracy_radius))
+        })
+        .collect();
 
     // Closure to push undo snapshot from planner-level code
     let mut push_snapshot = move || {
         let snap = capture_snapshot(
-            &gun_positions, &target_positions, &spotter_positions,
-            &gun_weapon_ids, &gun_target_indices,
-            &wind_direction, &wind_strength,
+            &gun_positions,
+            &target_positions,
+            &spotter_positions,
+            &gun_weapon_ids,
+            &gun_target_indices,
+            &wind_direction,
+            &wind_strength,
         );
         push_undo(&mut undo_stack, &mut redo_stack, snap);
     };

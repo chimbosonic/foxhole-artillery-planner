@@ -22,8 +22,14 @@ pub fn CalculationDisplay(
     let pairings = gun_target_indices.read().clone();
     let multiple_guns = gun_positions.len() > 1;
 
-    let colonial: Vec<&WeaponData> = weapons.iter().filter(|w| w.faction == "COLONIAL" || w.faction == "BOTH").collect();
-    let warden: Vec<&WeaponData> = weapons.iter().filter(|w| w.faction == "WARDEN" || w.faction == "BOTH").collect();
+    let colonial: Vec<&WeaponData> = weapons
+        .iter()
+        .filter(|w| w.faction == "COLONIAL" || w.faction == "BOTH")
+        .collect();
+    let warden: Vec<&WeaponData> = weapons
+        .iter()
+        .filter(|w| w.faction == "WARDEN" || w.faction == "BOTH")
+        .collect();
 
     // Find which targets are assigned to at least one gun
     let assigned_targets: Vec<bool> = (0..target_positions.len())
@@ -144,6 +150,8 @@ pub fn CalculationDisplay(
                                             move |evt: Event<FormData>| {
                                                 on_before_change.call(());
                                                 let new_slug = evt.value().to_string();
+                                                // Track weapon assignment
+                                                crate::api::track_gun_placement_fire(&new_slug);
                                                 if let Some(entry) = gun_weapon_ids.write().get_mut(idx) {
                                                     *entry = new_slug;
                                                 }
