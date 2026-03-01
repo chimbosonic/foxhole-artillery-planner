@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>{app_title}</title>
+        <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta charset="UTF-8">
+        <meta name="theme-color" content="#141c28">
+        <style>
+            /* Critical inline CSS — visible before WASM mounts */
+            *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                background: #141c28;
+                color: #d6dce6;
+                font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+                height: 100vh;
+                overflow: hidden;
+            }
+            /* Visible only while it's the sole child of #main (before Dioxus mounts) */
+            .pre-loading {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+                gap: 12px;
+            }
+            .pre-loading:not(:only-child) { display: none; }
+            .pre-spinner {
+                width: 32px;
+                height: 32px;
+                border: 3px solid #283a58;
+                border-top-color: #c43030;
+                border-radius: 50%;
+                animation: pre-spin 0.8s linear infinite;
+            }
+            @keyframes pre-spin {
+                to { transform: rotate(360deg); }
+            }
+            .pre-text {
+                font-size: 14px;
+                color: #7888a0;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="main">
+            <div class="pre-loading">
+                <div class="pre-spinner"></div>
+                <div class="pre-text">Loading&hellip;</div>
+            </div>
+        </div>
+    </body>
+</html>

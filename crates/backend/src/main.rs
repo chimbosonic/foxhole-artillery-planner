@@ -8,6 +8,7 @@ use std::sync::Arc;
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::http::{HeaderValue, Method};
 use axum::{extract::State, response::Html, routing::get, Router};
+use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -77,6 +78,7 @@ fn build_app(schema: Schema, allowed_origins: &[HeaderValue]) -> Router {
         .with_state(schema)
         .merge(static_files)
         .layer(cors_layer(allowed_origins))
+        .layer(CompressionLayer::new())
 }
 
 #[tokio::main]
@@ -264,6 +266,98 @@ mod tests {
             .unwrap();
 
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    /// Build a test app with the compression layer applied (matches production).
+    fn test_app_compressed(
+        assets_dir: &Path,
+        dist_dir: &Path,
+        dist_assets_dir: &Path,
+    ) -> Router {
+        test_app(assets_dir, dist_dir, dist_assets_dir).layer(CompressionLayer::new())
+    }
+
+    /// Create a temp dir with a file containing enough content to trigger compression.
+    fn temp_dir_with_compressible_file(file_name: &str) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        // Repetitive content compresses well and exceeds minimum body size thresholds
+        let content = r#"{"maps":["Deadlands","Westgate","Farranac"]}"#.repeat(50);
+        std::fs::write(dir.path().join(file_name), content).unwrap();
+        dir
+    }
+
+    #[tokio::test]
+    async fn test_gzip_compression_when_accepted() {
+        let assets_dir = temp_dir_with_compressible_file("maps.json");
+        let dist_dir = temp_dir_with_file("index.html", "<html></html>");
+        let dist_assets_dir = temp_dir_with_file("app.js", "");
+
+        let app = test_app_compressed(assets_dir.path(), dist_dir.path(), dist_assets_dir.path());
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/static/maps.json")
+                    .header("accept-encoding", "gzip")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get("content-encoding").unwrap(),
+            "gzip"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_no_compression_without_accept_encoding() {
+        let assets_dir = temp_dir_with_compressible_file("maps.json");
+        let dist_dir = temp_dir_with_file("index.html", "<html></html>");
+        let dist_assets_dir = temp_dir_with_file("app.js", "");
+
+        let app = test_app_compressed(assets_dir.path(), dist_dir.path(), dist_assets_dir.path());
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/static/maps.json")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(resp.headers().get("content-encoding").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_brotli_compression_when_accepted() {
+        let assets_dir = temp_dir_with_compressible_file("maps.json");
+        let dist_dir = temp_dir_with_file("index.html", "<html></html>");
+        let dist_assets_dir = temp_dir_with_file("app.js", "");
+
+        let app = test_app_compressed(assets_dir.path(), dist_dir.path(), dist_assets_dir.path());
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/static/maps.json")
+                    .header("accept-encoding", "br")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get("content-encoding").unwrap(),
+            "br"
+        );
     }
 
     #[tokio::test]

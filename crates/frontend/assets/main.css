@@ -31,8 +31,8 @@
 }
 
 body {
-    background: var(--bg-dark);
-    color: var(--text);
+    background: var(--bg-dark, #0f1923);
+    color: var(--text, #c8d6e5);
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     overflow: hidden;
     height: 100vh;
