@@ -7,10 +7,10 @@
 
 ~~The entire SVG string (~8KB+) is rebuilt on every zoom, pan, and mousemove. This is the biggest performance bottleneck. Memoizing it so it only rebuilds when markers/pairings/faction change (not zoom) would help significantly.~~ **Addressed:** Wrapped SVG generation in `use_memo` so it only recomputes when positions, zoom, selection, faction, weapons, pairings, or accuracy radii change. Pan/drag signals are read outside the memo, so panning only updates the CSS transform. Also converted `accuracy_radii_px` from a plain `Vec` prop to a `Memo`/`ReadSignal` so the memo can reactively track wind-driven accuracy changes.
 
-### 2. No responsive layout
+### 2. No responsive layout — fixed
 **File:** `crates/frontend/assets/main.css`
 
-Zero `@media` queries. The `320px` sidebar is fixed — the app is completely unusable on mobile or small screens. Even a simple collapse-sidebar breakpoint at 768px would help.
+~~Zero `@media` queries. The `320px` sidebar is fixed — the app is completely unusable on mobile or small screens. Even a simple collapse-sidebar breakpoint at 768px would help.~~ **Addressed:** Added `@media (max-width: 768px)` breakpoint that collapses the sidebar into a fixed-position slide-in drawer toggled by a hamburger button. Includes semi-transparent backdrop overlay, CSS transition animation, and Escape key to close. Header and placement buttons scale down for mobile. E2E tests cover both desktop (1280×720) and mobile (375×667) viewports.
 
 ### 3. `.unwrap()` on GraphQL context data — fixed
 **File:** `crates/backend/src/graphql/mod.rs`

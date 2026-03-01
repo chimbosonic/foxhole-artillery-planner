@@ -1454,3 +1454,263 @@ test.describe("Error handling", () => {
     await dialog.accept();
   });
 });
+
+test.describe("Responsive layout", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await page.waitForSelector(".app", { timeout: 15_000 });
+  });
+
+  test.describe("Desktop viewport (1280x720)", () => {
+    test.beforeEach(async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 720 });
+    });
+
+    test("sidebar is visible by default", async ({ page }) => {
+      const sidebar = page.locator(".sidebar");
+      await expect(sidebar).toBeVisible();
+    });
+
+    test("hamburger button is hidden", async ({ page }) => {
+      const toggle = page.locator(".sidebar-toggle");
+      await expect(toggle).toBeHidden();
+    });
+
+    test("sidebar backdrop is not visible", async ({ page }) => {
+      const backdrop = page.locator(".sidebar-backdrop");
+      await expect(backdrop).toBeHidden();
+    });
+
+    test("map container is visible alongside sidebar", async ({ page }) => {
+      const map = page.locator(".map-container");
+      await expect(map).toBeVisible();
+      const sidebar = page.locator(".sidebar");
+      await expect(sidebar).toBeVisible();
+    });
+  });
+
+  test.describe("Mobile viewport (375x667)", () => {
+    test.beforeEach(async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 667 });
+    });
+
+    test("sidebar is hidden by default", async ({ page }) => {
+      const sidebar = page.locator(".sidebar");
+      await expect(sidebar).not.toBeInViewport();
+    });
+
+    test("hamburger button is visible", async ({ page }) => {
+      const toggle = page.locator(".sidebar-toggle");
+      await expect(toggle).toBeVisible();
+    });
+
+    test("clicking hamburger opens sidebar", async ({ page }) => {
+      const toggle = page.locator(".sidebar-toggle");
+      await toggle.click();
+
+      const sidebar = page.locator(".sidebar");
+      await expect(sidebar).toHaveClass(/open/);
+      await expect(sidebar).toBeInViewport();
+    });
+
+    test("backdrop appears when sidebar is open", async ({ page }) => {
+      const toggle = page.locator(".sidebar-toggle");
+      await toggle.click();
+
+      const backdrop = page.locator(".sidebar-backdrop");
+      await expect(backdrop).toHaveClass(/open/);
+      await expect(backdrop).toBeVisible();
+    });
+
+    test("clicking backdrop closes sidebar", async ({ page }) => {
+      const toggle = page.locator(".sidebar-toggle");
+      await toggle.click();
+
+      const backdrop = page.locator(".sidebar-backdrop");
+      await expect(backdrop).toBeVisible();
+      await backdrop.click();
+
+      const sidebar = page.locator(".sidebar");
+      await expect(sidebar).not.toHaveClass(/open/);
+    });
+
+    test("map container is full-width", async ({ page }) => {
+      const map = page.locator(".map-container");
+      const box = await map.boundingBox();
+      expect(box).toBeTruthy();
+      // Map should fill the viewport width (within a small margin)
+      expect(box!.width).toBeGreaterThanOrEqual(370);
+    });
+
+    test("Escape key closes open sidebar", async ({ page }) => {
+      const toggle = page.locator(".sidebar-toggle");
+      await toggle.click();
+
+      const sidebar = page.locator(".sidebar");
+      await expect(sidebar).toHaveClass(/open/);
+
+      await page.keyboard.press("Escape");
+      await expect(sidebar).not.toHaveClass(/open/);
+    });
+  });
+
+  test.describe("Toolbar buttons", () => {
+    test("renders 4 toolbar buttons", async ({ page }) => {
+      const buttons = page.locator(".toolbar-actions .toolbar-btn");
+      await expect(buttons).toHaveCount(4);
+    });
+
+    test("undo and redo buttons are disabled when stacks are empty", async ({
+      page,
+    }) => {
+      const undoBtn = page.locator(".toolbar-actions .toolbar-btn").nth(0);
+      const redoBtn = page.locator(".toolbar-actions .toolbar-btn").nth(1);
+      await expect(undoBtn).toBeDisabled();
+      await expect(redoBtn).toBeDisabled();
+    });
+
+    test("delete button is disabled when no marker is selected", async ({
+      page,
+    }) => {
+      const deleteBtn = page.locator(".toolbar-actions .toolbar-btn").nth(2);
+      await expect(deleteBtn).toBeDisabled();
+    });
+
+    test("undo removes a placed gun marker", async ({ page }) => {
+      const mapContainer = page.locator(".map-container");
+      await expect(mapContainer).toBeVisible({ timeout: 10_000 });
+      const box = await mapContainer.boundingBox();
+      expect(box).toBeTruthy();
+
+      // Place a gun marker
+      await mapContainer.click({
+        position: { x: box!.width / 2, y: box!.height / 2 },
+      });
+      const gunMarker = page.locator('.map-container svg text:text("GUN")');
+      await expect(gunMarker).toBeVisible({ timeout: 5000 });
+
+      // Undo button should now be enabled
+      const undoBtn = page.locator(".toolbar-actions .toolbar-btn").nth(0);
+      await expect(undoBtn).toBeEnabled();
+
+      // Click undo
+      await undoBtn.click();
+
+      // Gun marker should be removed
+      await expect(gunMarker).not.toBeVisible({ timeout: 5000 });
+    });
+
+    test("redo restores an undone gun marker", async ({ page }) => {
+      const mapContainer = page.locator(".map-container");
+      await expect(mapContainer).toBeVisible({ timeout: 10_000 });
+      const box = await mapContainer.boundingBox();
+      expect(box).toBeTruthy();
+
+      // Place a gun marker
+      await mapContainer.click({
+        position: { x: box!.width / 2, y: box!.height / 2 },
+      });
+      const gunMarker = page.locator('.map-container svg text:text("GUN")');
+      await expect(gunMarker).toBeVisible({ timeout: 5000 });
+
+      // Undo
+      const undoBtn = page.locator(".toolbar-actions .toolbar-btn").nth(0);
+      await undoBtn.click();
+      await expect(gunMarker).not.toBeVisible({ timeout: 5000 });
+
+      // Redo button should now be enabled
+      const redoBtn = page.locator(".toolbar-actions .toolbar-btn").nth(1);
+      await expect(redoBtn).toBeEnabled();
+
+      // Click redo
+      await redoBtn.click();
+
+      // Gun marker should reappear
+      await expect(gunMarker).toBeVisible({ timeout: 5000 });
+    });
+
+    test("reset view button resets zoom", async ({ page }) => {
+      const mapContainer = page.locator(".map-container");
+      await expect(mapContainer).toBeVisible({ timeout: 10_000 });
+
+      // Zoom in with scroll wheel
+      await mapContainer.hover();
+      await page.mouse.wheel(0, -300);
+      await page.waitForTimeout(300);
+
+      // Verify zoomed (transform scale > 1)
+      const inner = page.locator(".map-inner");
+      const transformBefore = await inner.evaluate(
+        (el) => getComputedStyle(el).transform,
+      );
+      expect(transformBefore).not.toBe("none");
+
+      // Click reset button (4th toolbar button)
+      const resetBtn = page.locator(".toolbar-actions .toolbar-btn").nth(3);
+      await resetBtn.click();
+      await page.waitForTimeout(300);
+
+      // Transform should be back to identity / scale(1)
+      const transformAfter = await inner.evaluate(
+        (el) => getComputedStyle(el).transform,
+      );
+      // After reset, transform is "translate(0px, 0px) scale(1)" or "none" or matrix(1,0,0,1,0,0)
+      const isReset =
+        transformAfter === "none" ||
+        transformAfter.includes("matrix(1, 0, 0, 1, 0, 0)");
+      expect(isReset).toBe(true);
+    });
+
+    test("toolbar is visible at mobile viewport", async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 667 });
+      await page.waitForTimeout(300);
+
+      const toolbar = page.locator(".toolbar-actions");
+      await expect(toolbar).toBeVisible();
+
+      const buttons = page.locator(".toolbar-actions .toolbar-btn");
+      await expect(buttons).toHaveCount(4);
+    });
+
+    test("all header buttons fit within viewport on iPhone SE (375px)", async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 375, height: 667 });
+      await page.waitForTimeout(300);
+
+      // Header should not overflow the viewport
+      const overflows = await page.evaluate(() => {
+        const header = document.querySelector(".header") as HTMLElement;
+        return header.scrollWidth > header.offsetWidth;
+      });
+      expect(overflows).toBe(false);
+
+      // Every toolbar button should be fully within the viewport
+      const toolbarBtns = page.locator(".toolbar-actions .toolbar-btn");
+      for (let i = 0; i < 4; i++) {
+        const box = await toolbarBtns.nth(i).boundingBox();
+        expect(box).toBeTruthy();
+        expect(box!.x).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(375);
+      }
+
+      // Every placement mode button should be fully within the viewport
+      const placementBtns = page.locator(".placement-mode button");
+      for (let i = 0; i < 3; i++) {
+        const box = await placementBtns.nth(i).boundingBox();
+        expect(box).toBeTruthy();
+        expect(box!.x).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(375);
+      }
+
+      // Faction toggle buttons should be fully within the viewport
+      const factionBtns = page.locator(".faction-toggle button");
+      for (let i = 0; i < 2; i++) {
+        const box = await factionBtns.nth(i).boundingBox();
+        expect(box).toBeTruthy();
+        expect(box!.x).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(375);
+      }
+    });
+  });
+});

@@ -152,9 +152,10 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     let mut undo_stack = use_signal(Vec::<PlanSnapshot>::new);
     let mut redo_stack = use_signal(Vec::<PlanSnapshot>::new);
 
-    // Help overlay and view-reset signaling
+    // Help overlay, view-reset signaling, and sidebar drawer
     let mut show_help = use_signal(|| false);
     let mut reset_view_counter = use_signal(|| 0u64);
+    let mut sidebar_open = use_signal(|| false);
 
     // Faction theme
     let mut faction = use_signal(load_saved_faction);
@@ -307,6 +308,56 @@ pub fn Planner(plan_id: Option<String>) -> Element {
         push_undo(&mut undo_stack, &mut redo_stack, snap);
     };
 
+    // Action closures shared between keyboard handler and toolbar buttons
+    let mut do_undo = move || {
+        if let Some(snap) = undo_stack.write().pop() {
+            let current = capture_snapshot(
+                &gun_positions, &target_positions, &spotter_positions,
+                &gun_weapon_ids, &gun_target_indices,
+                &wind_direction, &wind_strength,
+            );
+            redo_stack.write().push(current);
+            restore_snapshot(
+                &snap,
+                &mut gun_positions, &mut target_positions, &mut spotter_positions,
+                &mut gun_weapon_ids, &mut gun_target_indices,
+                &mut wind_direction, &mut wind_strength,
+            );
+            selected_marker.set(None);
+        }
+    };
+
+    let mut do_redo = move || {
+        if let Some(snap) = redo_stack.write().pop() {
+            let current = capture_snapshot(
+                &gun_positions, &target_positions, &spotter_positions,
+                &gun_weapon_ids, &gun_target_indices,
+                &wind_direction, &wind_strength,
+            );
+            undo_stack.write().push(current);
+            restore_snapshot(
+                &snap,
+                &mut gun_positions, &mut target_positions, &mut spotter_positions,
+                &mut gun_weapon_ids, &mut gun_target_indices,
+                &mut wind_direction, &mut wind_strength,
+            );
+            selected_marker.set(None);
+        }
+    };
+
+    let mut do_delete_selected = move || {
+        let cur_sel = *selected_marker.read();
+        if let Some(sm) = cur_sel {
+            push_snapshot();
+            remove_marker(
+                sm.kind, sm.index,
+                &mut gun_positions, &mut target_positions, &mut spotter_positions,
+                &mut gun_weapon_ids, &mut gun_target_indices,
+            );
+            selected_marker.set(None);
+        }
+    };
+
     let app_class = if *faction.read() == Faction::Colonial {
         "app colonial"
     } else {
@@ -346,40 +397,12 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     // Undo: Ctrl+Z / Cmd+Z (without Shift)
                     Key::Character(c) if c == "z" && ctrl_or_cmd && !shift => {
                         evt.prevent_default();
-                        if let Some(snap) = undo_stack.write().pop() {
-                            let current = capture_snapshot(
-                                &gun_positions, &target_positions, &spotter_positions,
-                                &gun_weapon_ids, &gun_target_indices,
-                                &wind_direction, &wind_strength,
-                            );
-                            redo_stack.write().push(current);
-                            restore_snapshot(
-                                &snap,
-                                &mut gun_positions, &mut target_positions, &mut spotter_positions,
-                                &mut gun_weapon_ids, &mut gun_target_indices,
-                                &mut wind_direction, &mut wind_strength,
-                            );
-                            selected_marker.set(None);
-                        }
+                        do_undo();
                     }
                     // Redo: Ctrl+Shift+Z / Cmd+Shift+Z
                     Key::Character(c) if (c == "Z" || c == "z") && ctrl_or_cmd && shift => {
                         evt.prevent_default();
-                        if let Some(snap) = redo_stack.write().pop() {
-                            let current = capture_snapshot(
-                                &gun_positions, &target_positions, &spotter_positions,
-                                &gun_weapon_ids, &gun_target_indices,
-                                &wind_direction, &wind_strength,
-                            );
-                            undo_stack.write().push(current);
-                            restore_snapshot(
-                                &snap,
-                                &mut gun_positions, &mut target_positions, &mut spotter_positions,
-                                &mut gun_weapon_ids, &mut gun_target_indices,
-                                &mut wind_direction, &mut wind_strength,
-                            );
-                            selected_marker.set(None);
-                        }
+                        do_redo();
                     }
                     // Placement modes
                     Key::Character(c) if c == "1" || c == "g" => {
@@ -398,25 +421,18 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     }
                     // Delete selected marker
                     Key::Delete | Key::Backspace => {
-                        let cur_sel = *selected_marker.read();
-                        if let Some(sm) = cur_sel {
-                            push_snapshot();
-                            remove_marker(
-                                sm.kind, sm.index,
-                                &mut gun_positions, &mut target_positions, &mut spotter_positions,
-                                &mut gun_weapon_ids, &mut gun_target_indices,
-                            );
-                            selected_marker.set(None);
-                        }
+                        do_delete_selected();
                     }
                     // Reset zoom/pan
                     Key::Character(c) if c == "r" => {
                         let current = *reset_view_counter.read();
                         reset_view_counter.set(current + 1);
                     }
-                    // Escape: close help or deselect
+                    // Escape: close sidebar, help, or deselect
                     Key::Escape => {
-                        if *show_help.read() {
+                        if *sidebar_open.read() {
+                            sidebar_open.set(false);
+                        } else if *show_help.read() {
                             show_help.set(false);
                         } else {
                             selected_marker.set(None);
@@ -428,6 +444,14 @@ pub fn Planner(plan_id: Option<String>) -> Element {
 
             // Header
             div { class: "header",
+                button {
+                    class: "sidebar-toggle",
+                    onclick: move |_| {
+                        let current = *sidebar_open.read();
+                        sidebar_open.set(!current);
+                    },
+                    "\u{2630}"
+                }
                 h1 { "Foxhole Artillery Planner" }
                 div { class: "placement-mode",
                     button {
@@ -447,6 +471,38 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     }
                 }
                 div { class: "header-right",
+                    div { class: "toolbar-actions",
+                        button {
+                            class: "toolbar-btn",
+                            disabled: undo_stack.read().is_empty(),
+                            title: "Undo (Ctrl+Z)",
+                            onclick: move |_| do_undo(),
+                            "\u{21B6}"
+                        }
+                        button {
+                            class: "toolbar-btn",
+                            disabled: redo_stack.read().is_empty(),
+                            title: "Redo (Ctrl+Shift+Z)",
+                            onclick: move |_| do_redo(),
+                            "\u{21B7}"
+                        }
+                        button {
+                            class: "toolbar-btn",
+                            disabled: selected_marker.read().is_none(),
+                            title: "Delete selected (Del)",
+                            onclick: move |_| do_delete_selected(),
+                            "\u{2715}"
+                        }
+                        button {
+                            class: "toolbar-btn",
+                            title: "Reset view (R)",
+                            onclick: move |_| {
+                                let current = *reset_view_counter.read();
+                                reset_view_counter.set(current + 1);
+                            },
+                            "\u{21BA}"
+                        }
+                    }
                     div { class: "faction-toggle",
                         button {
                             class: if *faction.read() == Faction::Warden { "active" } else { "" },
@@ -468,8 +524,14 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                 }
             }
 
+            // Sidebar backdrop (mobile drawer overlay)
+            div {
+                class: if *sidebar_open.read() { "sidebar-backdrop open" } else { "sidebar-backdrop" },
+                onclick: move |_| sidebar_open.set(false),
+            }
+
             // Sidebar
-            div { class: "sidebar",
+            div { class: if *sidebar_open.read() { "sidebar open" } else { "sidebar" },
                 // Map selector
                 div { class: "panel",
                     h3 { "Map" }

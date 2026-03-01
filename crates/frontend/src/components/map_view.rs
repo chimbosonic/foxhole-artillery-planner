@@ -12,6 +12,9 @@ const MAP_CONTAINER_ID: &str = "artillery-map-container";
 /// Drag threshold in pixels — movement below this is treated as a click.
 const DRAG_THRESHOLD: f64 = 3.0;
 
+/// Touch drag threshold — larger than mouse because touch is less precise.
+const TOUCH_DRAG_THRESHOLD: f64 = 8.0;
+
 const ZOOM_MIN: f64 = 1.0;
 const ZOOM_MAX: f64 = 10.0;
 const ZOOM_STEP: f64 = 1.1;
@@ -162,6 +165,13 @@ fn dist(a: &(f64, f64), b: (f64, f64)) -> f64 {
     (dx * dx + dy * dy).sqrt()
 }
 
+/// Distance between two client-coordinate points (for touch threshold checks).
+fn point_distance(a: (f64, f64), b: (f64, f64)) -> f64 {
+    let dx = a.0 - b.0;
+    let dy = a.1 - b.1;
+    (dx * dx + dy * dy).sqrt()
+}
+
 /// Find the index of the nearest position within `threshold` (Euclidean distance).
 fn find_nearest(positions: &[(f64, f64)], click: (f64, f64), threshold: f64) -> Option<usize> {
     let mut best_idx = None;
@@ -220,6 +230,9 @@ pub fn remove_marker(
 // SVG builder
 // ---------------------------------------------------------------------------
 
+/// Reference container width (desktop map panel) used to normalize marker sizes.
+const REFERENCE_WIDTH: f64 = 960.0;
+
 /// Build the full SVG content as a string for reliable rendering.
 /// Positions are in native map-image pixel space (2048×1776).
 #[allow(clippy::too_many_arguments)]
@@ -231,83 +244,95 @@ fn build_svg_content(
     gun_target_indices: &[Option<usize>],
     accuracy_radii_px: &[Option<f64>],
     zoom: f64,
+    container_width: f64,
     selected: Option<SelectedMarker>,
     colors: &ThemeColors,
 ) -> String {
     let mut svg = String::with_capacity(8192);
 
-    build_grid_lines(&mut svg);
-    build_grid_labels(&mut svg);
+    // Scale factor: keeps markers, strokes, and labels a consistent physical
+    // size on screen regardless of container width.  On a 960 px desktop panel
+    // the boost is 1.0; on a 430 px phone it's ~2.2×.
+    let mobile_boost = (REFERENCE_WIDTH / container_width).max(1.0);
+    let s = mobile_boost / zoom.min(5.0);
+
+    build_grid_lines(&mut svg, mobile_boost);
+    build_grid_labels(&mut svg, mobile_boost);
     if zoom >= 3.0 {
-        build_keypad_lines(&mut svg);
-        build_keypad_labels(&mut svg);
+        build_keypad_lines(&mut svg, mobile_boost);
+        build_keypad_labels(&mut svg, mobile_boost);
     }
-    build_range_circles(&mut svg, guns, gun_weapons, zoom, colors);
-    build_firing_lines(&mut svg, guns, targets, gun_target_indices, zoom, colors);
+    build_range_circles(&mut svg, guns, gun_weapons, s, colors);
+    build_firing_lines(&mut svg, guns, targets, gun_target_indices, s, colors);
     build_accuracy_circles(
         &mut svg,
         guns,
         targets,
         gun_target_indices,
         accuracy_radii_px,
-        zoom,
+        s,
         colors,
     );
-    build_gun_markers(&mut svg, guns, zoom, selected, colors);
-    build_target_markers(&mut svg, targets, zoom, selected, colors);
-    build_spotter_markers(&mut svg, spotters, zoom, selected, colors);
+    build_gun_markers(&mut svg, guns, s, selected, colors);
+    build_target_markers(&mut svg, targets, s, selected, colors);
+    build_spotter_markers(&mut svg, spotters, s, selected, colors);
 
     svg
 }
 
-fn build_grid_lines(svg: &mut String) {
+fn build_grid_lines(svg: &mut String, mb: f64) {
+    let sw = 1.0 * mb;
     for col in 0..=grid::GRID_COLS {
         let x = grid::grid_col_px(col);
         svg.push_str(&format!(
-            r#"<line x1="{x}" y1="0" x2="{x}" y2="{}" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>"#,
+            r#"<line x1="{x}" y1="0" x2="{x}" y2="{}" stroke="rgba(255,255,255,0.15)" stroke-width="{sw}"/>"#,
             grid::MAP_HEIGHT_PX
         ));
     }
     for row in 0..=grid::GRID_ROWS {
         let y = grid::grid_row_px(row);
         svg.push_str(&format!(
-            r#"<line x1="0" y1="{y}" x2="{}" y2="{y}" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>"#,
+            r#"<line x1="0" y1="{y}" x2="{}" y2="{y}" stroke="rgba(255,255,255,0.15)" stroke-width="{sw}"/>"#,
             grid::MAP_WIDTH_PX
         ));
     }
 }
 
-fn build_grid_labels(svg: &mut String) {
+fn build_grid_labels(svg: &mut String, mb: f64) {
+    let fs = 18.0 * mb;
     let col_step = grid::MAP_WIDTH_PX / grid::GRID_COLS as f64;
+    let col_y = 24.0 * mb;
     for col in 0..grid::GRID_COLS {
         let x = col as f64 * col_step + col_step / 2.0;
         let letter = grid::col_letter(col);
         svg.push_str(&format!(
-            r#"<text x="{x}" y="24" fill="rgba(255,255,255,0.45)" font-size="18" font-family="monospace" font-weight="600" text-anchor="middle" dominant-baseline="central">{letter}</text>"#
+            r#"<text x="{x}" y="{col_y}" fill="rgba(255,255,255,0.45)" font-size="{fs}" font-family="monospace" font-weight="600" text-anchor="middle" dominant-baseline="central">{letter}</text>"#
         ));
     }
     let row_step = grid::MAP_HEIGHT_PX / grid::GRID_ROWS as f64;
+    let row_x = 8.0 * mb;
     for row in 0..grid::GRID_ROWS {
-        let y = row as f64 * row_step + row_step / 2.0 + 8.0;
+        let y = row as f64 * row_step + row_step / 2.0 + 8.0 * mb;
         let num = row + 1;
         svg.push_str(&format!(
-            r#"<text x="8" y="{y}" fill="rgba(255,255,255,0.45)" font-size="18" font-family="monospace" font-weight="600" text-anchor="start" dominant-baseline="central">{num}</text>"#
+            r#"<text x="{row_x}" y="{y}" fill="rgba(255,255,255,0.45)" font-size="{fs}" font-family="monospace" font-weight="600" text-anchor="start" dominant-baseline="central">{num}</text>"#
         ));
     }
 }
 
-fn build_keypad_lines(svg: &mut String) {
+fn build_keypad_lines(svg: &mut String, mb: f64) {
     let cell_w = grid::MAP_WIDTH_PX / grid::GRID_COLS as f64;
     let cell_h = grid::MAP_HEIGHT_PX / grid::GRID_ROWS as f64;
     let third_w = cell_w / 3.0;
     let third_h = cell_h / 3.0;
+    let sw = 0.6 * mb;
 
     for col in 0..grid::GRID_COLS {
         let x0 = grid::grid_col_px(col);
         for i in 1..3 {
             let x = x0 + third_w * i as f64;
             svg.push_str(&format!(
-                r#"<line x1="{x}" y1="0" x2="{x}" y2="{}" stroke="rgba(255,255,255,0.08)" stroke-width="0.6"/>"#,
+                r#"<line x1="{x}" y1="0" x2="{x}" y2="{}" stroke="rgba(255,255,255,0.08)" stroke-width="{sw}"/>"#,
                 grid::MAP_HEIGHT_PX
             ));
         }
@@ -317,18 +342,20 @@ fn build_keypad_lines(svg: &mut String) {
         for i in 1..3 {
             let y = y0 + third_h * i as f64;
             svg.push_str(&format!(
-                r#"<line x1="0" y1="{y}" x2="{}" y2="{y}" stroke="rgba(255,255,255,0.08)" stroke-width="0.6"/>"#,
+                r#"<line x1="0" y1="{y}" x2="{}" y2="{y}" stroke="rgba(255,255,255,0.08)" stroke-width="{sw}"/>"#,
                 grid::MAP_WIDTH_PX
             ));
         }
     }
 }
 
-fn build_keypad_labels(svg: &mut String) {
+fn build_keypad_labels(svg: &mut String, mb: f64) {
     let cell_w = grid::MAP_WIDTH_PX / grid::GRID_COLS as f64;
     let cell_h = grid::MAP_HEIGHT_PX / grid::GRID_ROWS as f64;
     let third_w = cell_w / 3.0;
     let third_h = cell_h / 3.0;
+    // Gentler boost — these labels sit inside small keypad cells
+    let fs = 10.0 * mb.sqrt();
 
     // Numpad layout: row 0 (top) = 7 8 9, row 1 (mid) = 4 5 6, row 2 (bot) = 1 2 3
     const KEYPAD: [[u8; 3]; 3] = [[7, 8, 9], [4, 5, 6], [1, 2, 3]];
@@ -342,7 +369,7 @@ fn build_keypad_labels(svg: &mut String) {
                     let cx = x0 + third_w * kc as f64 + third_w / 2.0;
                     let cy = y0 + third_h * kr as f64 + third_h / 2.0;
                     svg.push_str(&format!(
-                        r#"<text x="{cx}" y="{cy}" fill="rgba(255,255,255,0.2)" font-size="10" font-family="monospace" text-anchor="middle" dominant-baseline="central">{label}</text>"#
+                        r#"<text x="{cx}" y="{cy}" fill="rgba(255,255,255,0.2)" font-size="{fs}" font-family="monospace" text-anchor="middle" dominant-baseline="central">{label}</text>"#
                     ));
                 }
             }
@@ -354,14 +381,13 @@ fn build_range_circles(
     svg: &mut String,
     guns: &[(f64, f64)],
     gun_weapons: &[Option<&WeaponData>],
-    zoom: f64,
+    s: f64,
     colors: &ThemeColors,
 ) {
     for (i, &(gx, gy)) in guns.iter().enumerate() {
         let Some(w) = gun_weapons.get(i).and_then(|o| *o) else {
             continue;
         };
-        let s = 1.0 / zoom.min(5.0);
         let max_r = coords::meters_to_image_px(w.max_range);
         let sw1 = 3.0 * s;
         let gun_color = colors.gun;
@@ -385,14 +411,13 @@ fn build_firing_lines(
     guns: &[(f64, f64)],
     targets: &[(f64, f64)],
     gun_target_indices: &[Option<usize>],
-    zoom: f64,
+    s: f64,
     colors: &ThemeColors,
 ) {
     for (gun_idx, &(gx, gy)) in guns.iter().enumerate() {
         let target_idx = gun_target_indices.get(gun_idx).and_then(|o| *o);
         if let Some(ti) = target_idx {
             if let Some(&(tx, ty)) = targets.get(ti) {
-                let s = 1.0 / zoom.min(5.0);
                 let sw = 3.0 * s;
                 let da1 = 12.0 * s;
                 let da2 = 8.0 * s;
@@ -411,7 +436,7 @@ fn build_accuracy_circles(
     targets: &[(f64, f64)],
     gun_target_indices: &[Option<usize>],
     accuracy_radii_px: &[Option<f64>],
-    zoom: f64,
+    s: f64,
     colors: &ThemeColors,
 ) {
     // Draw accuracy circle at the target for each paired gun that has a solution
@@ -420,7 +445,6 @@ fn build_accuracy_circles(
         let acc_r = accuracy_radii_px.get(gun_idx).and_then(|o| *o);
         if let (Some(ti), Some(acc_r)) = (target_idx, acc_r) {
             if let Some(&(tx, ty)) = targets.get(ti) {
-                let s = 1.0 / zoom.min(5.0);
                 let sw = 2.0 * s;
                 let da1 = 6.0 * s;
                 let da2 = 4.0 * s;
@@ -446,13 +470,12 @@ fn marker_label(base: &str, index: usize, total: usize) -> String {
 fn build_gun_markers(
     svg: &mut String,
     guns: &[(f64, f64)],
-    zoom: f64,
+    s: f64,
     selected: Option<SelectedMarker>,
     colors: &ThemeColors,
 ) {
     let total = guns.len();
     for (i, &(gx, gy)) in guns.iter().enumerate() {
-        let s = 1.0 / zoom.min(5.0);
         let r = 12.0 * s;
         let sw = 3.0 * s;
         let fs = 16.0 * s;
@@ -480,13 +503,12 @@ fn build_gun_markers(
 fn build_target_markers(
     svg: &mut String,
     targets: &[(f64, f64)],
-    zoom: f64,
+    s: f64,
     selected: Option<SelectedMarker>,
     colors: &ThemeColors,
 ) {
     let total = targets.len();
     for (i, &(tx, ty)) in targets.iter().enumerate() {
-        let s = 1.0 / zoom.min(5.0);
         let arm = 16.0 * s;
         let sw = 3.0 * s;
         let r = 8.0 * s;
@@ -526,13 +548,12 @@ fn build_target_markers(
 fn build_spotter_markers(
     svg: &mut String,
     spotters: &[(f64, f64)],
-    zoom: f64,
+    s: f64,
     selected: Option<SelectedMarker>,
     colors: &ThemeColors,
 ) {
     let total = spotters.len();
     for (i, &(sx, sy)) in spotters.iter().enumerate() {
-        let s = 1.0 / zoom.min(5.0);
         let r = 10.0 * s;
         let sw = 3.0 * s;
         let fs = 16.0 * s;
@@ -567,6 +588,113 @@ fn build_selection_ring(svg: &mut String, cx: f64, cy: f64, s: f64) {
     svg.push_str(&format!(
         r##"<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="white" stroke-width="{sw}" stroke-dasharray="{da1} {da2}" opacity="0.9"><animate attributeName="opacity" values="0.5;1;0.5" dur="1.2s" repeatCount="indefinite"/></circle>"##
     ));
+}
+
+// ---------------------------------------------------------------------------
+// Shared marker-placement logic (used by both mouse and touch handlers)
+// ---------------------------------------------------------------------------
+
+#[allow(clippy::too_many_arguments)]
+fn handle_marker_placement(
+    img_x: f64,
+    img_y: f64,
+    zoom: f64,
+    selected_marker: &mut Signal<Option<SelectedMarker>>,
+    placement_mode: &mut Signal<PlacementMode>,
+    gun_positions: &mut Signal<Vec<(f64, f64)>>,
+    target_positions: &mut Signal<Vec<(f64, f64)>>,
+    spotter_positions: &mut Signal<Vec<(f64, f64)>>,
+    gun_weapon_ids: &mut Signal<Vec<String>>,
+    gun_target_indices: &mut Signal<Vec<Option<usize>>>,
+    selected_weapon_slug: &Signal<String>,
+    push_snapshot: &mut dyn FnMut(),
+) {
+    // Move-mode: if a marker is selected, move it instead of placing.
+    // Special case: if a Gun is selected and the click is near an
+    // existing target, pair the gun with that target instead of moving.
+    let cur_sel = *selected_marker.read();
+    if let Some(sm) = cur_sel {
+        push_snapshot();
+        match sm.kind {
+            MarkerKind::Gun => {
+                let targets_snap = target_positions.read().clone();
+                let threshold = REMOVE_THRESHOLD / zoom.min(5.0);
+                if let Some(ti) = find_nearest(&targets_snap, (img_x, img_y), threshold) {
+                    // Click was near a target — pair the gun with it
+                    if let Some(entry) = gun_target_indices.write().get_mut(sm.index) {
+                        *entry = Some(ti);
+                    }
+                } else {
+                    // Click on empty space — move the gun
+                    if let Some(pos) = gun_positions.write().get_mut(sm.index) {
+                        *pos = (img_x, img_y);
+                    }
+                }
+            }
+            MarkerKind::Target => {
+                if let Some(pos) = target_positions.write().get_mut(sm.index) {
+                    *pos = (img_x, img_y);
+                }
+            }
+            MarkerKind::Spotter => {
+                if let Some(pos) = spotter_positions.write().get_mut(sm.index) {
+                    *pos = (img_x, img_y);
+                }
+            }
+        }
+        selected_marker.set(None);
+        return;
+    }
+
+    // Normal placement mode
+    push_snapshot();
+    let mode = *placement_mode.read();
+    match mode {
+        PlacementMode::Gun => {
+            gun_positions.write().push((img_x, img_y));
+            let slug = selected_weapon_slug.read().clone();
+            gun_weapon_ids.write().push(slug.clone());
+            // Auto-pair with first unpaired target
+            let pairings_snap = gun_target_indices.read().clone();
+            let targets_snap = target_positions.read().clone();
+            let unpaired_target = (0..targets_snap.len())
+                .find(|ti| !pairings_snap.contains(&Some(*ti)));
+            gun_target_indices.write().push(unpaired_target);
+            // Fire-and-forget tracking
+            crate::api::track_gun_placement_fire(&slug);
+        }
+        PlacementMode::Target => {
+            let targets_snap = target_positions.read().clone();
+            let threshold = REMOVE_THRESHOLD / zoom.min(5.0);
+            if let Some(ti) = find_nearest(&targets_snap, (img_x, img_y), threshold) {
+                // Clicked near an existing target — pair the first unpaired gun with it
+                let mut pairings = gun_target_indices.write();
+                if let Some(entry) = pairings.iter_mut().find(|p| p.is_none()) {
+                    *entry = Some(ti);
+                }
+                crate::api::track_target_placement_fire();
+            } else {
+                // Place a new target and auto-pair with first unpaired gun
+                target_positions.write().push((img_x, img_y));
+                let new_target_idx = target_positions.read().len() - 1;
+                let mut pairings = gun_target_indices.write();
+                if let Some(entry) = pairings.iter_mut().find(|p| p.is_none()) {
+                    *entry = Some(new_target_idx);
+                }
+                crate::api::track_target_placement_fire();
+            }
+        }
+        PlacementMode::Spotter => {
+            spotter_positions.write().push((img_x, img_y));
+            crate::api::track_spotter_placement_fire();
+        }
+    }
+    // Auto-cycle: Gun → Target → Gun for easy pairing
+    match mode {
+        PlacementMode::Gun => placement_mode.set(PlacementMode::Target),
+        PlacementMode::Target => placement_mode.set(PlacementMode::Gun),
+        PlacementMode::Spotter => {} // stay in spotter mode
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -628,13 +756,25 @@ pub fn MapView(
         push_undo(&mut undo_stack, &mut redo_stack, snap);
     };
 
-    // Drag state
+    // Drag state (mouse)
     let mut is_dragging = use_signal(|| false);
     let mut did_drag = use_signal(|| false);
     let mut drag_start_x = use_signal(|| 0.0_f64);
     let mut drag_start_y = use_signal(|| 0.0_f64);
     let mut drag_start_pan_x = use_signal(|| 0.0_f64);
     let mut drag_start_pan_y = use_signal(|| 0.0_f64);
+
+    // Touch state
+    let mut touch_start_pos = use_signal(|| None::<(f64, f64)>);
+    let mut touch_did_pan = use_signal(|| false);
+    let mut touch_start_pan_x = use_signal(|| 0.0_f64);
+    let mut touch_start_pan_y = use_signal(|| 0.0_f64);
+    let mut is_pinching = use_signal(|| false);
+    let mut pinch_start_distance = use_signal(|| 0.0_f64);
+    let mut pinch_start_zoom = use_signal(|| 1.0_f64);
+    let mut pinch_midpoint = use_signal(|| (0.0_f64, 0.0_f64));
+    let mut pinch_start_pan_x = use_signal(|| 0.0_f64);
+    let mut pinch_start_pan_y = use_signal(|| 0.0_f64);
 
     // Memoize SVG generation — only recomputes when positions, zoom, selection,
     // faction, weapons, pairings, or accuracy radii change. Pan changes (pan_x/pan_y)
@@ -655,6 +795,7 @@ pub fn MapView(
         let cur_zoom = *zoom.read();
         let cur_selected = *selected_marker.read();
         let colors = theme_colors(*faction.read());
+        let cw = container_rect().map(|r| r.width()).unwrap_or(REFERENCE_WIDTH);
 
         let svg_content = build_svg_content(
             &guns,
@@ -664,6 +805,7 @@ pub fn MapView(
             &pairings,
             &acc_radii,
             cur_zoom,
+            cw,
             cur_selected,
             colors,
         );
@@ -811,92 +953,13 @@ pub fn MapView(
                         client.x, client.y, MAP_CONTAINER_ID,
                         *zoom.read(), *pan_x.read(), *pan_y.read(),
                     ) {
-                        // Move-mode: if a marker is selected, move it instead of placing.
-                        // Special case: if a Gun is selected and the click is near an
-                        // existing target, pair the gun with that target instead of moving.
-                        let cur_sel = *selected_marker.read();
-                        if let Some(sm) = cur_sel {
-                            push_snapshot();
-                            match sm.kind {
-                                MarkerKind::Gun => {
-                                    let targets_snap = target_positions.read().clone();
-                                    let threshold = REMOVE_THRESHOLD / (*zoom.read()).min(5.0);
-                                    if let Some(ti) = find_nearest(&targets_snap, (img_x, img_y), threshold) {
-                                        // Click was near a target — pair the gun with it
-                                        if let Some(entry) = gun_target_indices.write().get_mut(sm.index) {
-                                            *entry = Some(ti);
-                                        }
-                                    } else {
-                                        // Click on empty space — move the gun
-                                        if let Some(pos) = gun_positions.write().get_mut(sm.index) {
-                                            *pos = (img_x, img_y);
-                                        }
-                                    }
-                                }
-                                MarkerKind::Target => {
-                                    if let Some(pos) = target_positions.write().get_mut(sm.index) {
-                                        *pos = (img_x, img_y);
-                                    }
-                                }
-                                MarkerKind::Spotter => {
-                                    if let Some(pos) = spotter_positions.write().get_mut(sm.index) {
-                                        *pos = (img_x, img_y);
-                                    }
-                                }
-                            }
-                            selected_marker.set(None);
-                            return;
-                        }
-
-                        // Normal placement mode
-                        push_snapshot();
-                        let mode = *placement_mode.read();
-                        match mode {
-                            PlacementMode::Gun => {
-                                gun_positions.write().push((img_x, img_y));
-                                let slug = selected_weapon_slug.read().clone();
-                                gun_weapon_ids.write().push(slug.clone());
-                                // Auto-pair with first unpaired target
-                                let pairings_snap = gun_target_indices.read().clone();
-                                let targets_snap = target_positions.read().clone();
-                                let unpaired_target = (0..targets_snap.len())
-                                    .find(|ti| !pairings_snap.contains(&Some(*ti)));
-                                gun_target_indices.write().push(unpaired_target);
-                                // Fire-and-forget tracking
-                                crate::api::track_gun_placement_fire(&slug);
-                            }
-                            PlacementMode::Target => {
-                                let targets_snap = target_positions.read().clone();
-                                let threshold = REMOVE_THRESHOLD / (*zoom.read()).min(5.0);
-                                if let Some(ti) = find_nearest(&targets_snap, (img_x, img_y), threshold) {
-                                    // Clicked near an existing target — pair the first unpaired gun with it
-                                    let mut pairings = gun_target_indices.write();
-                                    if let Some(entry) = pairings.iter_mut().find(|p| p.is_none()) {
-                                        *entry = Some(ti);
-                                    }
-                                    crate::api::track_target_placement_fire();
-                                } else {
-                                    // Place a new target and auto-pair with first unpaired gun
-                                    target_positions.write().push((img_x, img_y));
-                                    let new_target_idx = target_positions.read().len() - 1;
-                                    let mut pairings = gun_target_indices.write();
-                                    if let Some(entry) = pairings.iter_mut().find(|p| p.is_none()) {
-                                        *entry = Some(new_target_idx);
-                                    }
-                                    crate::api::track_target_placement_fire();
-                                }
-                            }
-                            PlacementMode::Spotter => {
-                                spotter_positions.write().push((img_x, img_y));
-                                crate::api::track_spotter_placement_fire();
-                            }
-                        }
-                        // Auto-cycle: Gun → Target → Gun for easy pairing
-                        match mode {
-                            PlacementMode::Gun => placement_mode.set(PlacementMode::Target),
-                            PlacementMode::Target => placement_mode.set(PlacementMode::Gun),
-                            PlacementMode::Spotter => {} // stay in spotter mode
-                        }
+                        handle_marker_placement(
+                            img_x, img_y, *zoom.read(),
+                            &mut selected_marker, &mut placement_mode,
+                            &mut gun_positions, &mut target_positions, &mut spotter_positions,
+                            &mut gun_weapon_ids, &mut gun_target_indices,
+                            &selected_weapon_slug, &mut push_snapshot,
+                        );
                     }
                 }
             },
@@ -977,6 +1040,133 @@ pub fn MapView(
                 zoom.set(1.0);
                 pan_x.set(0.0);
                 pan_y.set(0.0);
+            },
+
+            // --- Touch event handlers ---
+
+            ontouchstart: move |evt: Event<TouchData>| {
+                evt.prevent_default();
+                let touches = evt.data().touches();
+                if touches.len() == 1 {
+                    // Single finger: record start position for tap detection and panning
+                    let t = &touches[0];
+                    touch_start_pos.set(Some((t.client_coordinates().x, t.client_coordinates().y)));
+                    touch_did_pan.set(false);
+                    touch_start_pan_x.set(*pan_x.read());
+                    touch_start_pan_y.set(*pan_y.read());
+                } else if touches.len() >= 2 {
+                    // Two fingers: start pinch-to-zoom
+                    let t0 = &touches[0];
+                    let t1 = &touches[1];
+                    let p0 = (t0.client_coordinates().x, t0.client_coordinates().y);
+                    let p1 = (t1.client_coordinates().x, t1.client_coordinates().y);
+                    let d = point_distance(p0, p1);
+                    is_pinching.set(true);
+                    pinch_start_distance.set(d);
+                    pinch_start_zoom.set(*zoom.read());
+                    let mid = ((p0.0 + p1.0) / 2.0, (p0.1 + p1.1) / 2.0);
+                    pinch_midpoint.set(mid);
+                    pinch_start_pan_x.set(*pan_x.read());
+                    pinch_start_pan_y.set(*pan_y.read());
+                    // Cancel any tap tracking
+                    touch_start_pos.set(None);
+                    touch_did_pan.set(true);
+                }
+            },
+
+            ontouchmove: move |evt: Event<TouchData>| {
+                evt.prevent_default();
+                let touches = evt.data().touches();
+
+                if *is_pinching.read() && touches.len() >= 2 {
+                    // Pinch-to-zoom
+                    let t0 = &touches[0];
+                    let t1 = &touches[1];
+                    let p0 = (t0.client_coordinates().x, t0.client_coordinates().y);
+                    let p1 = (t1.client_coordinates().x, t1.client_coordinates().y);
+                    let d = point_distance(p0, p1);
+                    let start_d = *pinch_start_distance.read();
+                    if start_d < 1.0 { return; }
+
+                    let scale = d / start_d;
+                    let old_z = *pinch_start_zoom.read();
+                    let new_z = (old_z * scale).clamp(ZOOM_MIN, ZOOM_MAX);
+
+                    // Zoom centered on the pinch midpoint
+                    let Some(rect) = container_rect() else { return };
+                    let mid = *pinch_midpoint.read();
+                    let cx = mid.0 - rect.left();
+                    let cy = mid.1 - rect.top();
+                    let (new_px, new_py) = zoom_pan_at_cursor(
+                        cx, cy, old_z, new_z,
+                        *pinch_start_pan_x.read(), *pinch_start_pan_y.read(),
+                    );
+                    let (px, py) = clamp_pan(new_px, new_py, new_z, rect.width(), rect.height());
+                    zoom.set(new_z);
+                    pan_x.set(px);
+                    pan_y.set(py);
+                } else if touches.len() == 1 {
+                    // Single finger pan
+                    let t = &touches[0];
+                    let cur = (t.client_coordinates().x, t.client_coordinates().y);
+                    if let Some(start) = *touch_start_pos.read() {
+                        let dx = cur.0 - start.0;
+                        let dy = cur.1 - start.1;
+                        if !*touch_did_pan.read() && point_distance(start, cur) > TOUCH_DRAG_THRESHOLD {
+                            touch_did_pan.set(true);
+                        }
+                        if *touch_did_pan.read() {
+                            let new_px = *touch_start_pan_x.read() + dx;
+                            let new_py = *touch_start_pan_y.read() + dy;
+                            let (px, py) = clamp_pan_to_container(new_px, new_py, *zoom.read());
+                            pan_x.set(px);
+                            pan_y.set(py);
+                        }
+                    }
+                }
+            },
+
+            ontouchend: move |evt: Event<TouchData>| {
+                evt.prevent_default();
+                let remaining = evt.data().touches().len();
+
+                if *is_pinching.read() {
+                    // Wait for all fingers to lift before resetting pinch state
+                    if remaining == 0 {
+                        is_pinching.set(false);
+                        touch_start_pos.set(None);
+                    }
+                    return;
+                }
+
+                // Single-finger tap: if no pan occurred and all fingers are up, treat as tap
+                if remaining == 0 && !*touch_did_pan.read() {
+                    if let Some(start) = *touch_start_pos.read() {
+                        if let Some((img_x, img_y)) = coords::click_to_map_px_zoomed(
+                            start.0, start.1, MAP_CONTAINER_ID,
+                            *zoom.read(), *pan_x.read(), *pan_y.read(),
+                        ) {
+                            handle_marker_placement(
+                                img_x, img_y, *zoom.read(),
+                                &mut selected_marker, &mut placement_mode,
+                                &mut gun_positions, &mut target_positions, &mut spotter_positions,
+                                &mut gun_weapon_ids, &mut gun_target_indices,
+                                &selected_weapon_slug, &mut push_snapshot,
+                            );
+                        }
+                    }
+                }
+
+                if remaining == 0 {
+                    touch_start_pos.set(None);
+                }
+            },
+
+            ontouchcancel: move |_evt: Event<TouchData>| {
+                // Reset all touch state
+                touch_start_pos.set(None);
+                touch_did_pan.set(false);
+                is_pinching.set(false);
             },
 
             // Inner wrapper — CSS transform applies zoom/pan to map + overlay together

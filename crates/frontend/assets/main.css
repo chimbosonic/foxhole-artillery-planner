@@ -96,6 +96,8 @@ body {
     background: #000;
     user-select: none;
     -webkit-user-select: none;
+    touch-action: none;
+    -webkit-touch-callout: none;
 }
 
 .map-container.dragging {
@@ -525,6 +527,34 @@ button.secondary {
     gap: 8px;
 }
 
+/* --- Toolbar action buttons --- */
+
+.toolbar-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.toolbar-btn {
+    background: var(--bg-input);
+    color: var(--text);
+    font-size: 14px;
+    padding: 4px 8px;
+    min-width: 32px;
+    text-align: center;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    line-height: 1;
+}
+
+.toolbar-btn:hover:not(:disabled) {
+    background: var(--bg-panel);
+}
+
+.toolbar-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
 .faction-toggle {
     display: flex;
     border: 1px solid var(--border);
@@ -681,4 +711,98 @@ kbd {
 .out-of-range-text {
     color: var(--accent);
     font-weight: 600;
+}
+
+/* --- Sidebar toggle (hamburger) --- */
+
+.sidebar-toggle {
+    display: none;
+    background: var(--bg-input);
+    font-size: 20px;
+    padding: 4px 8px;
+    line-height: 1;
+}
+
+/* --- Sidebar backdrop overlay --- */
+
+.sidebar-backdrop {
+    display: none;
+}
+
+/* --- Responsive: mobile/tablet (≤768px) --- */
+
+@media (max-width: 768px) {
+    .app {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+        position: fixed;
+        left: -320px;
+        top: 0;
+        bottom: 0;
+        width: 300px;
+        z-index: 100;
+        transition: left 0.25s ease;
+        background: var(--bg-panel);
+    }
+
+    .sidebar.open {
+        left: 0;
+    }
+
+    .sidebar-toggle {
+        display: block;
+    }
+
+    .sidebar-backdrop.open {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 99;
+        background: rgba(0, 0, 0, 0.5);
+    }
+
+    .header {
+        padding: 6px;
+        gap: 4px;
+    }
+
+    .header h1 {
+        display: none;
+    }
+
+    .placement-mode button {
+        padding: 3px 4px;
+        font-size: 10px;
+    }
+
+    .toolbar-actions {
+        gap: 2px;
+    }
+
+    .toolbar-btn {
+        padding: 3px 5px;
+        font-size: 12px;
+        min-width: 24px;
+    }
+
+    .faction-toggle button {
+        padding: 4px 6px;
+    }
+}
+
+/* --- Extra-small screens (≤400px) --- */
+
+@media (max-width: 400px) {
+    .placement-mode button {
+        padding: 3px 2px;
+        font-size: 9px;
+    }
+
+    .toolbar-btn {
+        padding: 3px 5px;
+        font-size: 11px;
+        min-width: 24px;
+    }
 }
