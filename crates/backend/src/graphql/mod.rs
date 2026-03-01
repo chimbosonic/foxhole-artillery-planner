@@ -236,7 +236,10 @@ fn validate_map_id(map_id: &str, assets: &Assets) -> async_graphql::Result<()> {
 
 fn validate_weapon_ids(weapon_ids: &[String], assets: &Assets) -> async_graphql::Result<()> {
     for wid in weapon_ids {
-        if wid != UNASSIGNED_WEAPON && assets.find_weapon_by_slug(wid).is_none() {
+        if wid.is_empty() || wid == UNASSIGNED_WEAPON {
+            continue;
+        }
+        if assets.find_weapon_by_slug(wid).is_none() {
             return Err(async_graphql::Error::new(format!(
                 "Unknown weapon: {}",
                 wid
@@ -687,8 +690,11 @@ impl MutationRoot {
         weapon_slug: String,
     ) -> async_graphql::Result<bool> {
         let assets = ctx_data::<Arc<Assets>>(ctx)?;
-        // Allow "unassigned" for guns placed without a weapon
-        if weapon_slug != UNASSIGNED_WEAPON && assets.find_weapon_by_slug(&weapon_slug).is_none() {
+        // Allow empty or "unassigned" for guns placed without a weapon
+        if !weapon_slug.is_empty()
+            && weapon_slug != UNASSIGNED_WEAPON
+            && assets.find_weapon_by_slug(&weapon_slug).is_none()
+        {
             return Err(async_graphql::Error::new(format!(
                 "Unknown weapon: {}",
                 weapon_slug
