@@ -70,11 +70,15 @@ fn build_app(schema: Schema) -> Router {
 
 #[tokio::main]
 async fn main() {
-    let assets_dir = PathBuf::from("assets");
+    let assets_dir =
+        PathBuf::from(std::env::var("ASSETS_DIR").unwrap_or_else(|_| "assets".to_string()));
     let loaded_assets = Arc::new(assets::Assets::load(&assets_dir));
 
-    let db_path = PathBuf::from("data/plans.redb");
-    std::fs::create_dir_all("data").expect("Failed to create data directory");
+    let db_path =
+        PathBuf::from(std::env::var("DB_PATH").unwrap_or_else(|_| "data/plans.redb".to_string()));
+    if let Some(parent) = db_path.parent() {
+        std::fs::create_dir_all(parent).expect("Failed to create database directory");
+    }
     let storage = storage::Storage::open(&db_path);
 
     let schema = graphql::build_schema(loaded_assets, storage);

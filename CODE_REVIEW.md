@@ -36,10 +36,10 @@ Plan names have no length limit, coordinates aren't bounds-checked (could be NaN
 
 Five `.read().clone()` calls on signal vectors every render cycle. With many markers this creates unnecessary allocations. Could use refs directly.
 
-### 7. Hardcoded CSS colors not covered by theme toggle
-**File:** `crates/frontend/assets/main.css:215, 219`
+### 7. Hardcoded CSS colors not covered by theme toggle — fixed
+**File:** `crates/frontend/assets/main.css`
 
-`.target-label { fill: #ffe0b3 }` and `.spotter-label { fill: #b3d4f0 }` are hardcoded — they won't change with the Colonial theme. Should use CSS variables.
+~~`.target-label { fill: #ffe0b3 }` and `.spotter-label { fill: #b3d4f0 }` are hardcoded — they won't change with the Colonial theme. Should use CSS variables.~~ **Addressed:** Added `--target-label` and `--spotter-label` CSS variables to both Warden and Colonial themes, and `.target-label`/`.spotter-label` now use `var()` references.
 
 ### 8. `u32` for indices instead of `usize`
 **File:** `crates/shared/src/models.rs:92`
@@ -70,10 +70,10 @@ No log levels, timestamps, or structured output. Makes production debugging diff
 
 ## Low Impact (easy wins)
 
-### 13. Unreachable match arm
+### 13. Unreachable match arm — fixed
 **File:** `crates/shared/src/grid.rs:84`
 
-The `_ => 5` default in keypad mapping is unreachable since all 9 combinations of `(0..=2, 0..=2)` are covered. Should be `unreachable!()`.
+~~The `_ => 5` default in keypad mapping is unreachable since all 9 combinations of `(0..=2, 0..=2)` are covered. Should be `unreachable!()`.~~ **Addressed:** Changed to `unreachable!("kx and ky are clamped to 0..=2")`.
 
 ### 14. Gun == target edge case — documented
 **File:** `crates/shared/src/calc.rs`
@@ -85,10 +85,10 @@ The `_ => 5` default in keypad mapping is unreachable since all 9 combinations o
 
 Browser alert boxes are jarring. A toast or inline error message would be better UX.
 
-### 16. Hardcoded database/assets paths
+### 16. Hardcoded database/assets paths — fixed
 **File:** `crates/backend/src/main.rs:73, 76`
 
-`"data/plans.redb"` and `"assets"` are hardcoded. Should be configurable via env vars for deployment flexibility.
+~~`"data/plans.redb"` and `"assets"` are hardcoded. Should be configurable via env vars for deployment flexibility.~~ **Addressed:** Now reads `DB_PATH` and `ASSETS_DIR` env vars with fallback defaults. Also uses `parent()` for directory creation instead of hardcoded `"data"`.
 
 ### 17. Playwright only tests Chromium
 **File:** `playwright.config.ts:10`

@@ -8,6 +8,8 @@
     --text: #d6dce6;
     --text-dim: #7888a0;
     --border: #283a58;
+    --target-label: #ffe0b3;
+    --spotter-label: #b3d4f0;
 }
 
 .app.colonial {
@@ -18,6 +20,8 @@
     --text: #d6e6d9;
     --text-dim: #78a088;
     --border: #28583a;
+    --target-label: #c4eab8;
+    --spotter-label: #b3d4f0;
 }
 
 * {
@@ -212,11 +216,11 @@ body {
 }
 
 .target-label {
-    fill: #ffe0b3;
+    fill: var(--target-label);
 }
 
 .spotter-label {
-    fill: #b3d4f0;
+    fill: var(--spotter-label);
 }
 
 /* --- Coordinate readout (bottom-left of map) --- */

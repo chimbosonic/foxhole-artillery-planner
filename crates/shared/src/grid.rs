@@ -81,7 +81,7 @@ pub fn format_grid_coord(m_x: f64, m_y: f64) -> String {
         (0, 2) => 1,
         (1, 2) => 2,
         (2, 2) => 3,
-        _ => 5,
+        _ => unreachable!("kx and ky are clamped to 0..=2"),
     };
 
     format!("{}{}k{}", col_letter(col), row + 1, keypad)
