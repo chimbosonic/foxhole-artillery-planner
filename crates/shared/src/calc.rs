@@ -51,7 +51,8 @@ pub fn wind_drift_at_range(weapon: &Weapon, dist: f64) -> f64 {
 /// Drift magnitude scales with weapon type, range, and wind strength (0-5).
 fn wind_offset(wind: &WindInput, weapon: &Weapon, dist: f64) -> (f64, f64) {
     let base_drift = wind_drift_at_range(weapon, dist);
-    let strength_m = base_drift * (wind.strength as f64 / 5.0);
+    let clamped_strength = (wind.strength as f64).min(5.0);
+    let strength_m = base_drift * (clamped_strength / 5.0);
     // Wind blows FROM `direction`, so shells drift TOWARD the opposite direction.
     // Convert "blows from" to "pushes to": add 180 degrees.
     let push_dir = (wind.direction + 180.0) % 360.0;
@@ -306,8 +307,8 @@ mod tests {
     }
 
     #[test]
-    fn test_wind_strength_above_five() {
-        // Wind strength is not clamped — strength=10 should produce 2x the drift of strength=5
+    fn test_wind_strength_clamped_at_five() {
+        // Wind strength is clamped to 5 — strength=10 should produce the same drift as strength=5
         let w = test_weapon();
         let gun = Position { x: 0.0, y: 0.0 };
         let target = Position { x: 0.0, y: -300.0 }; // max range, north
@@ -326,7 +327,7 @@ mod tests {
 
         let drift5 = sol5.wind_offset_meters.unwrap();
         let drift10 = sol10.wind_offset_meters.unwrap();
-        assert!((drift10 - drift5 * 2.0).abs() < 1e-6);
+        assert!((drift10 - drift5).abs() < 1e-6);
     }
 
     #[test]

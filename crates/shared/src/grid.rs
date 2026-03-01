@@ -16,6 +16,9 @@ pub const MAP_HEIGHT_PX: f64 = 1776.0;
 pub const GRID_COLS: usize = 17; // A through Q
 pub const GRID_ROWS: usize = 15; // 1 through 15
 
+// Small inset to keep exact-boundary positions inside the last grid cell/keypad
+const BOUNDARY_EPSILON: f64 = 0.01;
+
 // Derived constants
 pub const GRID_CELL_WIDTH_M: f64 = MAP_WIDTH_M / GRID_COLS as f64; // ~128.5m
 pub const GRID_CELL_HEIGHT_M: f64 = MAP_HEIGHT_M / GRID_ROWS as f64; // 126.0m
@@ -47,8 +50,8 @@ pub fn col_letter(col: usize) -> char {
 /// Format a meter position as a Foxhole grid coordinate (e.g., "G9k3").
 pub fn format_grid_coord(m_x: f64, m_y: f64) -> String {
     // Clamp to map bounds
-    let m_x = m_x.clamp(0.0, MAP_WIDTH_M - 0.01);
-    let m_y = m_y.clamp(0.0, MAP_HEIGHT_M - 0.01);
+    let m_x = m_x.clamp(0.0, MAP_WIDTH_M - BOUNDARY_EPSILON);
+    let m_y = m_y.clamp(0.0, MAP_HEIGHT_M - BOUNDARY_EPSILON);
 
     let col = (m_x / GRID_CELL_WIDTH_M) as usize;
     let row = (m_y / GRID_CELL_HEIGHT_M) as usize;

@@ -203,6 +203,14 @@ fn ctx_data<'a, T: Send + Sync + 'static>(ctx: &'a Context<'a>) -> async_graphql
     })
 }
 
+/// Convert a storage error into a generic client-facing error, logging the details server-side.
+fn internal_err(context: &str) -> impl FnOnce(String) -> async_graphql::Error + '_ {
+    move |e| {
+        tracing::error!(error = %e, "{}", context);
+        async_graphql::Error::new("Internal server error")
+    }
+}
+
 fn validate_name(name: &str) -> async_graphql::Result<()> {
     if name.len() > 200 {
         return Err(async_graphql::Error::new(
@@ -459,19 +467,21 @@ impl QueryRoot {
 
     async fn plan(&self, ctx: &Context<'_>, id: ID) -> async_graphql::Result<Option<GqlPlan>> {
         let storage = ctx_data::<Arc<Storage>>(ctx)?;
-        let plan = storage.get_plan(&id).map_err(async_graphql::Error::new)?;
+        let plan = storage.get_plan(&id).map_err(internal_err("Failed to load plan"))?;
         Ok(plan.map(GqlPlan::from))
     }
 
     async fn stats(&self, ctx: &Context<'_>) -> async_graphql::Result<GqlStats> {
         let storage = ctx_data::<Arc<Storage>>(ctx)?;
         let assets = ctx_data::<Arc<Assets>>(ctx)?;
-        let total_plans = storage.count_plans().map_err(async_graphql::Error::new)?;
-        let db_size_bytes = storage.db_size_bytes().map_err(async_graphql::Error::new)?;
+        let total_plans = storage.count_plans().map_err(internal_err("Failed to count plans"))?;
+        let db_size_bytes = storage
+            .db_size_bytes()
+            .map_err(internal_err("Failed to get database size"))?;
 
         let raw_counts = storage
             .get_gun_placement_counts()
-            .map_err(async_graphql::Error::new)?;
+            .map_err(internal_err("Failed to get gun placement counts"))?;
 
         let mut colonial_total: u64 = 0;
         let mut warden_total: u64 = 0;
@@ -506,10 +516,10 @@ impl QueryRoot {
 
         let target_count = storage
             .get_marker_placement_count("target")
-            .map_err(async_graphql::Error::new)?;
+            .map_err(internal_err("Failed to get target placement count"))?;
         let spotter_count = storage
             .get_marker_placement_count("spotter")
-            .map_err(async_graphql::Error::new)?;
+            .map_err(internal_err("Failed to get spotter placement count"))?;
 
         Ok(GqlStats {
             total_plans,
@@ -577,10 +587,9 @@ impl MutationRoot {
             updated_at: now,
         };
 
-        storage.save_plan(&plan).map_err(|e| {
-            tracing::error!(error = %e, "Failed to save plan");
-            async_graphql::Error::new(e)
-        })?;
+        storage
+            .save_plan(&plan)
+            .map_err(internal_err("Failed to save plan"))?;
 
         tracing::info!(plan_id = %plan.id, map = %plan.map_id, "Plan created");
         Ok(GqlPlan::from(plan))
@@ -588,20 +597,18 @@ impl MutationRoot {
 
     async fn track_target_placement(&self, ctx: &Context<'_>) -> async_graphql::Result<bool> {
         let storage = ctx_data::<Arc<Storage>>(ctx)?;
-        storage.increment_marker_placement("target").map_err(|e| {
-            tracing::warn!(error = %e, "Failed to track target placement");
-            async_graphql::Error::new(e)
-        })?;
+        storage
+            .increment_marker_placement("target")
+            .map_err(internal_err("Failed to track target placement"))?;
         tracing::info!("Target placement tracked");
         Ok(true)
     }
 
     async fn track_spotter_placement(&self, ctx: &Context<'_>) -> async_graphql::Result<bool> {
         let storage = ctx_data::<Arc<Storage>>(ctx)?;
-        storage.increment_marker_placement("spotter").map_err(|e| {
-            tracing::warn!(error = %e, "Failed to track spotter placement");
-            async_graphql::Error::new(e)
-        })?;
+        storage
+            .increment_marker_placement("spotter")
+            .map_err(internal_err("Failed to track spotter placement"))?;
         tracing::info!("Spotter placement tracked");
         Ok(true)
     }
@@ -623,10 +630,9 @@ impl MutationRoot {
             )));
         }
         let storage = ctx_data::<Arc<Storage>>(ctx)?;
-        storage.increment_gun_placement(&weapon_slug).map_err(|e| {
-            tracing::warn!(error = %e, weapon = %weapon_slug, "Failed to track gun placement");
-            async_graphql::Error::new(e)
-        })?;
+        storage
+            .increment_gun_placement(&weapon_slug)
+            .map_err(internal_err("Failed to track gun placement"))?;
         tracing::info!(weapon = %weapon_slug, "Gun placement tracked");
         Ok(true)
     }
@@ -668,7 +674,7 @@ mod tests {
     fn test_storage() -> (Arc<Storage>, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("test.redb");
-        let storage = Storage::open(&path);
+        let storage = Storage::open(&path).unwrap();
         (storage, dir)
     }
 

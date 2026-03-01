@@ -14,25 +14,29 @@ pub struct Storage {
 }
 
 impl Storage {
-    pub fn open(path: &Path) -> Arc<Self> {
+    pub fn open(path: &Path) -> Result<Arc<Self>, String> {
         let db = Database::create(path)
-            .unwrap_or_else(|e| panic!("Failed to open database at {}: {}", path.display(), e));
+            .map_err(|e| format!("Failed to open database at {}: {}", path.display(), e))?;
 
         // Ensure tables exist
-        let write_txn = db.begin_write().expect("Failed to begin write txn");
+        let write_txn = db
+            .begin_write()
+            .map_err(|e| format!("Failed to begin write txn: {}", e))?;
         {
             let _ = write_txn.open_table(PLANS_TABLE);
             let _ = write_txn.open_table(GUN_PLACEMENTS_TABLE);
             let _ = write_txn.open_table(MARKER_PLACEMENTS_TABLE);
         }
-        write_txn.commit().expect("Failed to commit initial txn");
+        write_txn
+            .commit()
+            .map_err(|e| format!("Failed to commit initial txn: {}", e))?;
 
         tracing::info!(path = %path.display(), "Database opened");
 
-        Arc::new(Storage {
+        Ok(Arc::new(Storage {
             db,
             path: path.to_path_buf(),
-        })
+        }))
     }
 
     pub fn save_plan(&self, plan: &Plan) -> Result<(), String> {
@@ -152,7 +156,7 @@ mod tests {
     fn temp_storage() -> (Arc<Storage>, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("test.redb");
-        let storage = Storage::open(&path);
+        let storage = Storage::open(&path).unwrap();
         (storage, dir)
     }
 

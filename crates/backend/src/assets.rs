@@ -7,23 +7,23 @@ pub struct Assets {
 }
 
 impl Assets {
-    pub fn load(assets_dir: &Path) -> Self {
+    pub fn load(assets_dir: &Path) -> Result<Self, String> {
         let maps_path = assets_dir.join("maps.json");
         let weapons_path = assets_dir.join("weapons.json");
 
         let maps_data = std::fs::read_to_string(&maps_path)
-            .unwrap_or_else(|e| panic!("Failed to read {}: {}", maps_path.display(), e));
+            .map_err(|e| format!("Failed to read {}: {}", maps_path.display(), e))?;
         let weapons_data = std::fs::read_to_string(&weapons_path)
-            .unwrap_or_else(|e| panic!("Failed to read {}: {}", weapons_path.display(), e));
+            .map_err(|e| format!("Failed to read {}: {}", weapons_path.display(), e))?;
 
         let maps: Vec<GameMap> = serde_json::from_str(&maps_data)
-            .unwrap_or_else(|e| panic!("Failed to parse maps.json: {}", e));
+            .map_err(|e| format!("Failed to parse maps.json: {}", e))?;
         let weapons: Vec<Weapon> = serde_json::from_str(&weapons_data)
-            .unwrap_or_else(|e| panic!("Failed to parse weapons.json: {}", e));
+            .map_err(|e| format!("Failed to parse weapons.json: {}", e))?;
 
         tracing::info!(maps = maps.len(), weapons = weapons.len(), "Loaded game assets");
 
-        Assets { maps, weapons }
+        Ok(Assets { maps, weapons })
     }
 
     pub fn find_weapon_by_slug(&self, slug: &str) -> Option<&Weapon> {

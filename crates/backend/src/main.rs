@@ -93,14 +93,20 @@ async fn main() {
 
     let assets_dir =
         PathBuf::from(std::env::var("ASSETS_DIR").unwrap_or_else(|_| "assets".to_string()));
-    let loaded_assets = Arc::new(assets::Assets::load(&assets_dir));
+    let loaded_assets = Arc::new(assets::Assets::load(&assets_dir).unwrap_or_else(|e| {
+        tracing::error!(error = %e, "Failed to load game assets");
+        std::process::exit(1);
+    }));
 
     let db_path =
         PathBuf::from(std::env::var("DB_PATH").unwrap_or_else(|_| "data/plans.redb".to_string()));
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent).expect("Failed to create database directory");
     }
-    let storage = storage::Storage::open(&db_path);
+    let storage = storage::Storage::open(&db_path).unwrap_or_else(|e| {
+        tracing::error!(error = %e, "Failed to open database");
+        std::process::exit(1);
+    });
 
     let allowed_origins: Vec<HeaderValue> = match std::env::var("CORS_ORIGIN") {
         Ok(origin) => vec![origin.parse().expect("Invalid CORS_ORIGIN value")],
