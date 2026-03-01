@@ -81,19 +81,6 @@ impl Storage {
             .map_err(|e| e.to_string())
     }
 
-    pub fn delete_plan(&self, id: &str) -> Result<bool, String> {
-        let write_txn = self.db.begin_write().map_err(|e| e.to_string())?;
-        let removed = {
-            let mut table = write_txn
-                .open_table(PLANS_TABLE)
-                .map_err(|e| e.to_string())?;
-            let result = table.remove(id).map_err(|e| e.to_string())?;
-            result.is_some()
-        };
-        write_txn.commit().map_err(|e| e.to_string())?;
-        Ok(removed)
-    }
-
     pub fn increment_gun_placement(&self, weapon_slug: &str) -> Result<(), String> {
         let write_txn = self.db.begin_write().map_err(|e| e.to_string())?;
         {
@@ -277,27 +264,6 @@ mod tests {
     }
 
     #[test]
-    fn test_delete_plan() {
-        let (storage, _dir) = temp_storage();
-        let id = uuid::Uuid::new_v4();
-        let plan = test_plan(id, "To Delete");
-        storage.save_plan(&plan).unwrap();
-
-        let removed = storage.delete_plan(&id.to_string()).unwrap();
-        assert!(removed);
-
-        let loaded = storage.get_plan(&id.to_string()).unwrap();
-        assert!(loaded.is_none());
-    }
-
-    #[test]
-    fn test_delete_plan_not_found() {
-        let (storage, _dir) = temp_storage();
-        let removed = storage.delete_plan("nonexistent").unwrap();
-        assert!(!removed);
-    }
-
-    #[test]
     fn test_count_plans() {
         let (storage, _dir) = temp_storage();
         let ids: Vec<uuid::Uuid> = (0..3).map(|_| uuid::Uuid::new_v4()).collect();
@@ -307,9 +273,6 @@ mod tests {
                 .unwrap();
         }
         assert_eq!(storage.count_plans().unwrap(), 3);
-
-        storage.delete_plan(&ids[0].to_string()).unwrap();
-        assert_eq!(storage.count_plans().unwrap(), 2);
     }
 
     #[test]

@@ -194,20 +194,6 @@ pub struct CreatePlanInput {
     pub wind_strength: Option<u32>,
 }
 
-#[derive(InputObject)]
-pub struct UpdatePlanInput {
-    pub id: ID,
-    pub name: Option<String>,
-    pub map_id: Option<String>,
-    pub weapon_ids: Option<Vec<String>>,
-    pub gun_positions: Option<Vec<PositionInput>>,
-    pub target_positions: Option<Vec<PositionInput>>,
-    pub spotter_positions: Option<Vec<PositionInput>>,
-    pub gun_target_indices: Option<Vec<Option<i32>>>,
-    pub wind_direction: Option<f64>,
-    pub wind_strength: Option<u32>,
-}
-
 // Helpers
 
 fn ctx_data<'a, T: Send + Sync + 'static>(ctx: &'a Context<'a>) -> async_graphql::Result<&'a T> {
@@ -336,39 +322,6 @@ fn validate_create_plan(input: &CreatePlanInput, assets: &Assets) -> async_graph
             .map(|v| v.len())
             .unwrap_or(0);
         validate_gun_target_indices(indices, target_count)?;
-    }
-    if let Some(dir) = input.wind_direction {
-        validate_wind_direction(dir)?;
-    }
-    if let Some(strength) = input.wind_strength {
-        validate_wind_strength(strength)?;
-    }
-    Ok(())
-}
-
-fn validate_update_plan(input: &UpdatePlanInput, assets: &Assets) -> async_graphql::Result<()> {
-    if let Some(name) = &input.name {
-        validate_name(name)?;
-    }
-    if let Some(map_id) = &input.map_id {
-        validate_map_id(map_id, assets)?;
-    }
-    if let Some(weapon_ids) = &input.weapon_ids {
-        validate_weapon_ids(weapon_ids, assets)?;
-    }
-    if let Some(positions) = &input.gun_positions {
-        validate_positions(positions, "gun_positions")?;
-    }
-    if let Some(positions) = &input.target_positions {
-        validate_positions(positions, "target_positions")?;
-    }
-    if let Some(positions) = &input.spotter_positions {
-        validate_positions(positions, "spotter_positions")?;
-    }
-    if let Some(indices) = &input.gun_target_indices {
-        if let Some(targets) = &input.target_positions {
-            validate_gun_target_indices(indices, targets.len())?;
-        }
     }
     if let Some(dir) = input.wind_direction {
         validate_wind_direction(dir)?;
@@ -602,72 +555,6 @@ impl MutationRoot {
         Ok(GqlPlan::from(plan))
     }
 
-    async fn update_plan(
-        &self,
-        ctx: &Context<'_>,
-        input: UpdatePlanInput,
-    ) -> async_graphql::Result<GqlPlan> {
-        let assets = ctx_data::<Arc<Assets>>(ctx)?;
-        let storage = ctx_data::<Arc<Storage>>(ctx)?;
-
-        let mut plan = storage
-            .get_plan(&input.id)
-            .map_err(async_graphql::Error::new)?
-            .ok_or_else(|| async_graphql::Error::new("Plan not found"))?;
-
-        validate_update_plan(&input, assets)?;
-
-        if let Some(name) = input.name {
-            plan.name = name;
-        }
-        if let Some(map_id) = input.map_id {
-            plan.map_id = map_id;
-        }
-        if let Some(weapon_ids) = input.weapon_ids {
-            plan.weapon_ids = weapon_ids;
-        }
-        if let Some(positions) = input.gun_positions {
-            plan.gun_positions = positions
-                .into_iter()
-                .map(|p| Position { x: p.x, y: p.y })
-                .collect();
-        }
-        if let Some(positions) = input.target_positions {
-            plan.target_positions = positions
-                .into_iter()
-                .map(|p| Position { x: p.x, y: p.y })
-                .collect();
-        }
-        if let Some(positions) = input.spotter_positions {
-            plan.spotter_positions = positions
-                .into_iter()
-                .map(|p| Position { x: p.x, y: p.y })
-                .collect();
-        }
-        if let Some(indices) = input.gun_target_indices {
-            plan.gun_target_indices = indices.into_iter().map(|o| o.map(|v| v as u32)).collect();
-        }
-        if let Some(dir) = input.wind_direction {
-            plan.wind_direction = Some(dir);
-        }
-        if let Some(strength) = input.wind_strength {
-            plan.wind_strength = strength as u8;
-        }
-
-        plan.updated_at = chrono::Utc::now().to_rfc3339();
-
-        storage
-            .save_plan(&plan)
-            .map_err(async_graphql::Error::new)?;
-
-        Ok(GqlPlan::from(plan))
-    }
-
-    async fn delete_plan(&self, ctx: &Context<'_>, id: ID) -> async_graphql::Result<bool> {
-        let storage = ctx_data::<Arc<Storage>>(ctx)?;
-        storage.delete_plan(&id).map_err(async_graphql::Error::new)
-    }
-
     async fn track_target_placement(&self, ctx: &Context<'_>) -> async_graphql::Result<bool> {
         let storage = ctx_data::<Arc<Storage>>(ctx)?;
         storage
@@ -845,18 +732,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_delete_plan_without_context_returns_error() {
-        let schema = schema_without_context();
-        let resp = schema
-            .execute(r#"mutation { deletePlan(id: "abc") }"#)
-            .await;
-        assert!(!resp.errors.is_empty());
-        assert!(resp.errors[0]
-            .message
-            .contains("Internal server error: missing context data"));
-    }
-
-    #[tokio::test]
     async fn test_track_gun_placement_without_context_returns_error() {
         let schema = schema_without_context();
         let resp = schema
@@ -906,25 +781,6 @@ mod tests {
         let (schema, _dir) = schema_with_context();
         let resp = schema.execute("{ weapons { slug } }").await;
         assert!(resp.errors.is_empty(), "unexpected errors: {:?}", resp.errors);
-    }
-
-    // ---- Helpers for update tests ----
-
-    const CREATE_PLAN_MUTATION: &str = r#"mutation {
-        createPlan(input: {
-            name: "test",
-            mapId: "test-map",
-            weaponIds: []
-        }) { id }
-    }"#;
-
-    async fn create_plan_id(schema: &Schema) -> String {
-        let resp = schema.execute(CREATE_PLAN_MUTATION).await;
-        assert!(resp.errors.is_empty(), "setup failed: {:?}", resp.errors);
-        resp.data.into_json().unwrap()["createPlan"]["id"]
-            .as_str()
-            .unwrap()
-            .to_string()
     }
 
     // ---- Part 3: Input validation returns errors ----
@@ -1120,43 +976,4 @@ mod tests {
         assert!(resp.errors.is_empty(), "unexpected errors: {:?}", resp.errors);
     }
 
-    #[tokio::test]
-    async fn test_update_plan_unknown_map_returns_error() {
-        let (schema, _dir) = schema_with_context();
-        let id = create_plan_id(&schema).await;
-        let query = format!(
-            r#"mutation {{ updatePlan(input: {{ id: "{}", mapId: "bogus-map" }}) {{ id }} }}"#,
-            id
-        );
-        let resp = schema.execute(&query).await;
-        assert!(!resp.errors.is_empty());
-        assert!(resp.errors[0].message.contains("Unknown map"));
-    }
-
-    #[tokio::test]
-    async fn test_update_plan_name_too_long_returns_error() {
-        let (schema, _dir) = schema_with_context();
-        let id = create_plan_id(&schema).await;
-        let long_name = "y".repeat(201);
-        let query = format!(
-            r#"mutation {{ updatePlan(input: {{ id: "{}", name: "{}" }}) {{ id }} }}"#,
-            id, long_name
-        );
-        let resp = schema.execute(&query).await;
-        assert!(!resp.errors.is_empty());
-        assert!(resp.errors[0].message.contains("200 characters"));
-    }
-
-    #[tokio::test]
-    async fn test_update_plan_wind_strength_too_high_returns_error() {
-        let (schema, _dir) = schema_with_context();
-        let id = create_plan_id(&schema).await;
-        let query = format!(
-            r#"mutation {{ updatePlan(input: {{ id: "{}", windStrength: 99 }}) {{ id }} }}"#,
-            id
-        );
-        let resp = schema.execute(&query).await;
-        assert!(!resp.errors.is_empty());
-        assert!(resp.errors[0].message.contains("wind_strength"));
-    }
 }
