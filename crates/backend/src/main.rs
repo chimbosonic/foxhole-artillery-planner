@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
-use axum::http::HeaderValue;
+use axum::http::{HeaderValue, Method};
 use axum::{extract::State, response::Html, routing::get, Router};
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
@@ -42,8 +42,19 @@ fn cached_static_router(dir: &Path, cache_header: &'static str) -> Router {
 const CACHE_1DAY: &str = "public, max-age=86400, must-revalidate";
 const CACHE_IMMUTABLE: &str = "public, max-age=31536000, immutable";
 
+/// Build CORS layer from allowed origins.
+///
+/// In production, set `CORS_ORIGIN` to the deployed domain (e.g. `https://arty.dp42.dev`).
+/// In development, localhost origins are allowed by default.
+fn cors_layer(allowed_origins: &[HeaderValue]) -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(allowed_origins.to_vec())
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([axum::http::header::CONTENT_TYPE])
+}
+
 /// Build the full application router.
-fn build_app(schema: Schema) -> Router {
+fn build_app(schema: Schema, allowed_origins: &[HeaderValue]) -> Router {
     // Static file routers are stateless — merge them before adding app state
     let static_files = Router::new()
         .nest(
@@ -65,7 +76,7 @@ fn build_app(schema: Schema) -> Router {
         .route("/plan/{id}", get(serve_index))
         .with_state(schema)
         .merge(static_files)
-        .layer(CorsLayer::permissive())
+        .layer(cors_layer(allowed_origins))
 }
 
 #[tokio::main]
@@ -81,8 +92,16 @@ async fn main() {
     }
     let storage = storage::Storage::open(&db_path);
 
+    let allowed_origins: Vec<HeaderValue> = match std::env::var("CORS_ORIGIN") {
+        Ok(origin) => vec![origin.parse().expect("Invalid CORS_ORIGIN value")],
+        Err(_) => vec![
+            "http://localhost:8080".parse().unwrap(),
+            "http://localhost:3000".parse().unwrap(),
+        ],
+    };
+
     let schema = graphql::build_schema(loaded_assets, storage);
-    let app = build_app(schema);
+    let app = build_app(schema, &allowed_origins);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let addr = format!("0.0.0.0:{}", port);

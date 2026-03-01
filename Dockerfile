@@ -36,6 +36,7 @@ COPY --from=builder /app/target/dx/foxhole-frontend/release/web/public dist
 RUN mkdir -p data
 
 ENV PORT=3000
+ENV CORS_ORIGIN=https://arty.dp42.dev
 EXPOSE 3000
 
 CMD ["./foxhole-backend"]

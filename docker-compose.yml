@@ -7,6 +7,7 @@ services:
       - foxhole-data:/app/data
     environment:
       - PORT=3000
+      - CORS_ORIGIN=https://example.com
     restart: unless-stopped
 
 volumes:

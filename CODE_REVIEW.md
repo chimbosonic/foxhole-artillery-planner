@@ -22,10 +22,10 @@ Zero `@media` queries. The `320px` sidebar is fixed — the app is completely un
 
 ~~Plan names have no length limit, coordinates aren't bounds-checked (could be NaN/Infinity), `gun_target_indices` can reference out-of-bounds targets, wind direction isn't validated to 0-360. A crafted request could produce garbage data.~~ **Addressed:** Added field-level validators (`validate_name`, `validate_map_id`, `validate_weapon_ids`, `validate_position`, `validate_positions`, `validate_gun_target_indices`, `validate_wind_direction`, `validate_wind_strength`) called from `validate_create_plan` and `validate_update_plan`. Rejects: names >200 chars, unknown map/weapon IDs, NaN/Infinity/out-of-bounds coordinates, out-of-bounds target indices, wind direction outside [0,360), wind strength >5. 15 tests cover validation and happy paths.
 
-### 5. Permissive CORS
-**File:** `crates/backend/src/main.rs:68`
+### 5. Permissive CORS — fixed
+**File:** `crates/backend/src/main.rs`
 
-`CorsLayer::permissive()` allows any origin. Fine for a personal tool, but if this ever faces the internet, any site can make requests to the API.
+~~`CorsLayer::permissive()` allows any origin. Fine for a personal tool, but if this ever faces the internet, any site can make requests to the API.~~ **Addressed:** Replaced `CorsLayer::permissive()` with explicit origin allowlist. Set `CORS_ORIGIN=https://arty.dp42.dev` in production; defaults to `localhost:8080`/`localhost:3000` for development. Only allows GET/POST methods and `Content-Type` header.
 
 ---
 
