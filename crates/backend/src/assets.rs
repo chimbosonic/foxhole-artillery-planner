@@ -29,4 +29,8 @@ impl Assets {
     pub fn find_weapon_by_slug(&self, slug: &str) -> Option<&Weapon> {
         self.weapons.iter().find(|w| w.slug() == slug)
     }
+
+    pub fn find_map_by_file_name(&self, file_name: &str) -> Option<&GameMap> {
+        self.maps.iter().find(|m| m.file_name == file_name)
+    }
 }
