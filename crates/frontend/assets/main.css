@@ -511,6 +511,39 @@ button.secondary {
     padding: 4px 8px;
     border-radius: 4px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.marker-item .coord-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.remove-marker-btn {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.marker-item:hover .remove-marker-btn {
+    opacity: 1;
+}
+
+.remove-marker-btn:hover {
+    background: rgba(196, 48, 48, 0.6);
+    color: #fff;
 }
 
 .marker-item:hover {

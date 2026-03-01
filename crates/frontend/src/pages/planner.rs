@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 use crate::api::{self, FiringSolutionData};
 use crate::components::calculation_display::CalculationDisplay;
 use crate::components::help_overlay::HelpOverlay;
-use crate::components::map_view::{remove_marker, Faction, MapView, PlacementMode, SelectedMarker};
+use crate::components::map_view::{remove_marker, Faction, MapView, MarkerKind, PlacementMode, SelectedMarker};
 use crate::components::plan_panel::PlanPanel;
 use crate::components::weapon_selector::WeaponSelector;
 use crate::components::wind_input::WindInput;
@@ -601,6 +601,25 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     weapons: weapons.clone(),
                     selected_marker: selected_marker,
                     on_before_change: move |_| push_snapshot(),
+                    on_remove: move |(kind, idx): (MarkerKind, usize)| {
+                        push_snapshot();
+                        let cur_sel = *selected_marker.read();
+                        remove_marker(
+                            kind, idx,
+                            &mut gun_positions, &mut target_positions, &mut spotter_positions,
+                            &mut gun_weapon_ids, &mut gun_target_indices,
+                        );
+                        // Fixup selection
+                        if let Some(sm) = cur_sel {
+                            if sm.kind == kind {
+                                if sm.index == idx {
+                                    selected_marker.set(None);
+                                } else if sm.index > idx {
+                                    selected_marker.set(Some(SelectedMarker { kind, index: sm.index - 1 }));
+                                }
+                            }
+                        }
+                    },
                 }
 
                 PlanPanel {

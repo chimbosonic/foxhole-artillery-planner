@@ -15,6 +15,7 @@ pub fn CalculationDisplay(
     weapons: Vec<WeaponData>,
     selected_marker: Signal<Option<SelectedMarker>>,
     on_before_change: EventHandler<()>,
+    on_remove: EventHandler<(MarkerKind, usize)>,
 ) -> Element {
     let has_any_solution = solutions.iter().any(|s| s.is_some());
     let cur_selected = *selected_marker.read();
@@ -101,6 +102,15 @@ pub fn CalculationDisplay(
                                                 "Gun: {coords::format_px_as_grid(g.0, g.1)}"
                                             }
                                         }
+                                        button {
+                                            class: "remove-marker-btn",
+                                            title: "Remove gun",
+                                            onclick: move |evt: Event<MouseData>| {
+                                                evt.stop_propagation();
+                                                on_remove.call((MarkerKind::Gun, gun_idx));
+                                            },
+                                            "\u{2715}"
+                                        }
                                     }
                                 }
                             }
@@ -121,6 +131,15 @@ pub fn CalculationDisplay(
                                                 } else {
                                                     "Tgt: {coords::format_px_as_grid(t.0, t.1)}"
                                                 }
+                                            }
+                                            button {
+                                                class: "remove-marker-btn",
+                                                title: "Remove target",
+                                                onclick: move |evt: Event<MouseData>| {
+                                                    evt.stop_propagation();
+                                                    on_remove.call((MarkerKind::Target, ti));
+                                                },
+                                                "\u{2715}"
                                             }
                                         }
                                     }
@@ -294,6 +313,15 @@ pub fn CalculationDisplay(
                                         "Target: {coords::format_px_as_grid(t.0, t.1)} (unassigned)"
                                     }
                                 }
+                                button {
+                                    class: "remove-marker-btn",
+                                    title: "Remove target",
+                                    onclick: move |evt: Event<MouseData>| {
+                                        evt.stop_propagation();
+                                        on_remove.call((MarkerKind::Target, ti));
+                                    },
+                                    "\u{2715}"
+                                }
                             }
                         }
                     }
@@ -318,6 +346,15 @@ pub fn CalculationDisplay(
                                 } else {
                                     "Spt: {coords::format_px_as_grid(s.0, s.1)}"
                                 }
+                            }
+                            button {
+                                class: "remove-marker-btn",
+                                title: "Remove spotter",
+                                onclick: move |evt: Event<MouseData>| {
+                                    evt.stop_propagation();
+                                    on_remove.call((MarkerKind::Spotter, i));
+                                },
+                                "\u{2715}"
                             }
                         }
                     }
