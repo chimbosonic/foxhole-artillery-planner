@@ -2,13 +2,13 @@
     --bg-dark: #141c28;
     --bg-panel: #1a2840;
     --bg-input: #1f3358;
-    --accent: #cf8e3e;
+    --accent: #c43030;
     --accent-green: #5ab882;
     --accent-blue: #4a8fd4;
     --text: #d6dce6;
     --text-dim: #7888a0;
     --border: #283a58;
-    --target-label: #ffe0b3;
+    --target-label: #f0a0a0;
     --spotter-label: #b3d4f0;
 }
 
@@ -16,11 +16,11 @@
     --bg-dark: #141e16;
     --bg-panel: #1a3024;
     --bg-input: #1f3f2e;
-    --accent: #6fbf5e;
+    --accent: #c43030;
     --text: #d6e6d9;
     --text-dim: #78a088;
     --border: #28583a;
-    --target-label: #c4eab8;
+    --target-label: #f0a0a0;
     --spotter-label: #b3d4f0;
 }
 
@@ -468,6 +468,7 @@ button.secondary {
     flex: 1;
     font-size: 11px;
     padding: 4px;
+    background: var(--bg-input);
 }
 
 .placement-mode button.active-gun {

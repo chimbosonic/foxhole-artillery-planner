@@ -43,24 +43,24 @@ struct ThemeColors {
 
 const WARDEN_COLORS: ThemeColors = ThemeColors {
     gun: "#5ab882",
-    target: "#cf8e3e",
+    target: "#c43030",
     spotter: "#4a8fd4",
-    target_label: "#ffe0b3",
+    target_label: "#f0a0a0",
     spotter_label: "#b3d4f0",
-    min_range_fill: "rgba(207,142,62,0.06)",
-    firing_line_stroke: "rgba(207,142,62,0.7)",
-    accuracy_fill: "rgba(207,142,62,0.15)",
+    min_range_fill: "rgba(196,48,48,0.12)",
+    firing_line_stroke: "rgba(196,48,48,0.85)",
+    accuracy_fill: "rgba(196,48,48,0.25)",
 };
 
 const COLONIAL_COLORS: ThemeColors = ThemeColors {
     gun: "#5ab882",
-    target: "#6fbf5e",
+    target: "#c43030",
     spotter: "#4a8fd4",
-    target_label: "#c8f0b3",
+    target_label: "#f0a0a0",
     spotter_label: "#b3d4f0",
-    min_range_fill: "rgba(111,191,94,0.06)",
-    firing_line_stroke: "rgba(111,191,94,0.7)",
-    accuracy_fill: "rgba(111,191,94,0.15)",
+    min_range_fill: "rgba(196,48,48,0.12)",
+    firing_line_stroke: "rgba(196,48,48,0.85)",
+    accuracy_fill: "rgba(196,48,48,0.25)",
 };
 
 fn theme_colors(faction: Faction) -> &'static ThemeColors {

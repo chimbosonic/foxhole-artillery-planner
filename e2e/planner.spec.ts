@@ -1136,7 +1136,7 @@ test.describe("Warden theme", () => {
     expect(vars.bgDark).toBe("#141c28");
     expect(vars.bgPanel).toBe("#1a2840");
     expect(vars.bgInput).toBe("#1f3358");
-    expect(vars.accent).toBe("#cf8e3e");
+    expect(vars.accent).toBe("#c43030");
     expect(vars.accentGreen).toBe("#5ab882");
     expect(vars.accentBlue).toBe("#4a8fd4");
     expect(vars.text).toBe("#d6dce6");
@@ -1147,8 +1147,8 @@ test.describe("Warden theme", () => {
   test("header uses Warden accent color", async ({ page }) => {
     const h1 = page.locator(".header h1");
     const color = await h1.evaluate((el) => getComputedStyle(el).color);
-    // --accent: #cf8e3e → rgb(207, 142, 62)
-    expect(color).toBe("rgb(207, 142, 62)");
+    // --accent: #c43030 → rgb(196, 48, 48)
+    expect(color).toBe("rgb(196, 48, 48)");
   });
 
   test("sidebar panel uses Warden navy background", async ({ page }) => {
@@ -1201,12 +1201,12 @@ test.describe("Warden theme", () => {
       position: { x: box!.width / 2, y: box!.height / 2 },
     });
 
-    // Target markers are inline SVG circles with fill="#cf8e3e"
-    const targetMarker = page.locator('.map-container svg circle[fill="#cf8e3e"]');
+    // Target markers are inline SVG circles with fill="#c43030"
+    const targetMarker = page.locator('.map-container svg circle[fill="#c43030"]');
     await expect(targetMarker.first()).toBeVisible({ timeout: 5000 });
 
     const fill = await targetMarker.first().getAttribute("fill");
-    expect(fill).toBe("#cf8e3e");
+    expect(fill).toBe("#c43030");
   });
 });
 
@@ -1248,7 +1248,7 @@ test.describe("Theme toggle", () => {
     const accent = await app.evaluate((el) =>
       getComputedStyle(el).getPropertyValue("--accent").trim(),
     );
-    expect(accent).toBe("#6fbf5e");
+    expect(accent).toBe("#c43030");
   });
 
   test("clicking Warden switches back to Warden theme", async ({ page }) => {
@@ -1271,7 +1271,7 @@ test.describe("Theme toggle", () => {
     const accent = await app.evaluate((el) =>
       getComputedStyle(el).getPropertyValue("--accent").trim(),
     );
-    expect(accent).toBe("#cf8e3e");
+    expect(accent).toBe("#c43030");
   });
 
   test("localStorage faction persists across reload", async ({ page }) => {
@@ -1328,9 +1328,9 @@ test.describe("Theme toggle", () => {
     );
     await expect(gunMarker.first()).toBeVisible({ timeout: 5000 });
 
-    // Target marker should use Colonial green (#6fbf5e)
+    // Target marker should use Colonial dark orange (#c43030)
     const targetMarker = page.locator(
-      '.map-container svg circle[fill="#6fbf5e"]',
+      '.map-container svg circle[fill="#c43030"]',
     );
     await expect(targetMarker.first()).toBeVisible({ timeout: 5000 });
   });
