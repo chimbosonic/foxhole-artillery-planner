@@ -1,7 +1,7 @@
 use dioxus::html::input_data::keyboard_types::{Key, Modifiers};
 use dioxus::prelude::*;
 
-use crate::api::{self, FiringSolutionData, MapData, WeaponData};
+use crate::api::{self, FiringSolutionData};
 use crate::components::calculation_display::CalculationDisplay;
 use crate::components::help_overlay::HelpOverlay;
 use crate::components::map_view::{remove_marker, Faction, MapView, PlacementMode, SelectedMarker};
@@ -129,8 +129,8 @@ fn save_faction(faction: Faction) {
 #[component]
 pub fn Planner(plan_id: Option<String>) -> Element {
     // Data resources
-    let maps_resource = use_resource(api::fetch_maps);
-    let weapons_resource = use_resource(api::fetch_weapons);
+    let mut maps_resource = use_resource(api::fetch_maps);
+    let mut weapons_resource = use_resource(api::fetch_weapons);
 
     // UI state signals — positions are in native map-image pixel space (2048x1776)
     let mut selected_map = use_signal(String::new);
@@ -266,14 +266,35 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     });
 
     // Wait for initial data
-    let maps: Vec<MapData> = match &*maps_resource.read() {
-        Some(Ok(m)) => m.clone(),
-        _ => vec![],
-    };
-    let weapons: Vec<WeaponData> = match &*weapons_resource.read() {
-        Some(Ok(w)) => w.clone(),
-        _ => vec![],
-    };
+    let maps_state = maps_resource.read();
+    let weapons_state = weapons_resource.read();
+
+    if maps_state.is_none() || weapons_state.is_none() {
+        return rsx! {
+            div { class: "loading-state",
+                div { class: "spinner" }
+                p { "Loading game data..." }
+            }
+        };
+    }
+    if let Some(Err(e)) = &*maps_state {
+        return rsx! {
+            div { class: "error-state",
+                p { "Failed to load maps: {e}" }
+                button { onclick: move |_| maps_resource.restart(), "Retry" }
+            }
+        };
+    }
+    if let Some(Err(e)) = &*weapons_state {
+        return rsx! {
+            div { class: "error-state",
+                p { "Failed to load weapons: {e}" }
+                button { onclick: move |_| weapons_resource.restart(), "Retry" }
+            }
+        };
+    }
+    let maps = maps_state.as_ref().unwrap().as_ref().unwrap().clone();
+    let weapons = weapons_state.as_ref().unwrap().as_ref().unwrap().clone();
 
     // Set default map if none selected
     if selected_map.read().is_empty() && !maps.is_empty() {

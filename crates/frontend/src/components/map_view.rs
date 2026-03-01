@@ -594,6 +594,18 @@ fn build_selection_ring(svg: &mut String, cx: f64, cy: f64, s: f64) {
 // Shared marker-placement logic (used by both mouse and touch handlers)
 // ---------------------------------------------------------------------------
 
+/// Find the index of the first target not paired with any gun.
+fn find_first_unpaired_target(pairings: &[Option<usize>], target_count: usize) -> Option<usize> {
+    (0..target_count).find(|ti| !pairings.contains(&Some(*ti)))
+}
+
+/// Pair the first unpaired gun (None entry) with the given target index.
+fn pair_first_unpaired_gun(pairings: &mut [Option<usize>], target_idx: usize) {
+    if let Some(entry) = pairings.iter_mut().find(|p| p.is_none()) {
+        *entry = Some(target_idx);
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn handle_marker_placement(
     img_x: f64,
@@ -655,11 +667,8 @@ fn handle_marker_placement(
             let slug = selected_weapon_slug.read().clone();
             gun_weapon_ids.write().push(slug.clone());
             // Auto-pair with first unpaired target
-            let pairings_snap = gun_target_indices.read().clone();
-            let targets_snap = target_positions.read().clone();
-            let unpaired_target = (0..targets_snap.len())
-                .find(|ti| !pairings_snap.contains(&Some(*ti)));
-            gun_target_indices.write().push(unpaired_target);
+            let unpaired = find_first_unpaired_target(&gun_target_indices.read(), target_positions.read().len());
+            gun_target_indices.write().push(unpaired);
             // Fire-and-forget tracking
             crate::api::track_gun_placement_fire(&slug);
         }
@@ -668,19 +677,13 @@ fn handle_marker_placement(
             let threshold = REMOVE_THRESHOLD / zoom.min(5.0);
             if let Some(ti) = find_nearest(&targets_snap, (img_x, img_y), threshold) {
                 // Clicked near an existing target — pair the first unpaired gun with it
-                let mut pairings = gun_target_indices.write();
-                if let Some(entry) = pairings.iter_mut().find(|p| p.is_none()) {
-                    *entry = Some(ti);
-                }
+                pair_first_unpaired_gun(&mut gun_target_indices.write(), ti);
                 crate::api::track_target_placement_fire();
             } else {
                 // Place a new target and auto-pair with first unpaired gun
                 target_positions.write().push((img_x, img_y));
                 let new_target_idx = target_positions.read().len() - 1;
-                let mut pairings = gun_target_indices.write();
-                if let Some(entry) = pairings.iter_mut().find(|p| p.is_none()) {
-                    *entry = Some(new_target_idx);
-                }
+                pair_first_unpaired_gun(&mut gun_target_indices.write(), new_target_idx);
                 crate::api::track_target_placement_fire();
             }
         }
@@ -780,11 +783,11 @@ pub fn MapView(
     // faction, weapons, pairings, or accuracy radii change. Pan changes (pan_x/pan_y)
     // are read outside this memo so they don't trigger SVG rebuilds.
     let svg_html = use_memo(move || {
-        let guns = gun_positions.read().clone();
-        let targets = target_positions.read().clone();
-        let spotters = spotter_positions.read().clone();
-        let wids = gun_weapon_ids.read().clone();
-        let pairings = gun_target_indices.read().clone();
+        let guns = gun_positions.read();
+        let targets = target_positions.read();
+        let spotters = spotter_positions.read();
+        let wids = gun_weapon_ids.read();
+        let pairings = gun_target_indices.read();
         let acc_radii = accuracy_radii_px.read();
 
         let gun_weapons: Vec<Option<&WeaponData>> = wids

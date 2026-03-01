@@ -89,7 +89,7 @@ pub struct Plan {
     pub spotter_positions: Vec<Position>,
     /// Explicit gun→target pairing: one entry per gun, `Some(idx)` = paired with target at that index.
     #[serde(default)]
-    pub gun_target_indices: Vec<Option<u32>>,
+    pub gun_target_indices: Vec<Option<usize>>,
     pub wind_direction: Option<f64>,
     pub wind_strength: u8,
     pub created_at: String,
@@ -142,10 +142,10 @@ mod tests {
 
     #[test]
     fn test_gun_target_indices_serialization_roundtrip() {
-        let indices: Vec<Option<u32>> = vec![Some(0), None, Some(2)];
+        let indices: Vec<Option<usize>> = vec![Some(0), None, Some(2)];
         let json = serde_json::to_string(&indices).unwrap();
         assert_eq!(json, "[0,null,2]");
-        let parsed: Vec<Option<u32>> = serde_json::from_str(&json).unwrap();
+        let parsed: Vec<Option<usize>> = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, indices);
     }
 
@@ -155,7 +155,7 @@ mod tests {
         #[derive(Deserialize)]
         struct PartialPlan {
             #[serde(default)]
-            gun_target_indices: Vec<Option<u32>>,
+            gun_target_indices: Vec<Option<usize>>,
         }
         let json = r#"{}"#;
         let plan: PartialPlan = serde_json::from_str(json).unwrap();
@@ -167,7 +167,7 @@ mod tests {
         #[derive(Deserialize)]
         struct PartialPlan {
             #[serde(default)]
-            gun_target_indices: Vec<Option<u32>>,
+            gun_target_indices: Vec<Option<usize>>,
         }
         let json = r#"{"gun_target_indices":[0,null,1]}"#;
         let plan: PartialPlan = serde_json::from_str(json).unwrap();

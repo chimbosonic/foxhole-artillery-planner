@@ -275,7 +275,7 @@ fn validate_gun_target_indices(
                     i
                 )));
             }
-            if target_count > 0 && *v as usize >= target_count {
+            if target_count > 0 && (*v as usize) >= target_count {
                 return Err(async_graphql::Error::new(format!(
                     "gun_target_indices[{}]: index {} out of bounds (target count: {})",
                     i, v, target_count
@@ -545,7 +545,7 @@ impl MutationRoot {
                 .gun_target_indices
                 .unwrap_or_default()
                 .into_iter()
-                .map(|o| o.map(|v| v as u32))
+                .map(|o| o.map(|v| v as usize))
                 .collect(),
             wind_direction: input.wind_direction,
             wind_strength: input.wind_strength.unwrap_or(0) as u8,

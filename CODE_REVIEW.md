@@ -31,30 +31,30 @@
 
 ## Medium Impact
 
-### 6. Cloning vectors on every render
-**File:** `crates/frontend/src/components/map_view.rs:640-650`
+### 6. Cloning vectors on every render — fixed
+**File:** `crates/frontend/src/components/map_view.rs`
 
-Five `.read().clone()` calls on signal vectors every render cycle. With many markers this creates unnecessary allocations. Could use refs directly.
+~~Five `.read().clone()` calls on signal vectors every render cycle. With many markers this creates unnecessary allocations. Could use refs directly.~~ **Addressed:** Replaced 5 `.read().clone()` calls in the `svg_html` `use_memo` with direct read guards. References passed via `&*guard` syntax, eliminating heap allocations on every SVG recomputation.
 
 ### 7. Hardcoded CSS colors not covered by theme toggle — fixed
 **File:** `crates/frontend/assets/main.css`
 
 ~~`.target-label { fill: #ffe0b3 }` and `.spotter-label { fill: #b3d4f0 }` are hardcoded — they won't change with the Colonial theme. Should use CSS variables.~~ **Addressed:** Added `--target-label` and `--spotter-label` CSS variables to both Warden and Colonial themes, and `.target-label`/`.spotter-label` now use `var()` references.
 
-### 8. `u32` for indices instead of `usize`
+### 8. `u32` for indices instead of `usize` — fixed
 **File:** `crates/shared/src/models.rs:92`
 
-`gun_target_indices: Vec<Option<u32>>` forces casts to `usize` everywhere it's used. Creates boilerplate and a theoretical truncation risk.
+~~`gun_target_indices: Vec<Option<u32>>` forces casts to `usize` everywhere it's used. Creates boilerplate and a theoretical truncation risk.~~ **Addressed:** Changed `gun_target_indices` from `Vec<Option<u32>>` to `Vec<Option<usize>>` in the shared `Plan` model. Updated backend GQL input conversion from `as u32` to `as usize`. Backend validation still casts `i32→usize` since it operates on the GQL wire format. Frontend wire format (`i32` from GraphQL Int) unchanged. Updated shared model tests.
 
-### 9. No loading/error UI for resource fetches
-**File:** `crates/frontend/src/pages/planner.rs:132-133`
+### 9. No loading/error UI for resource fetches — fixed
+**File:** `crates/frontend/src/pages/planner.rs`
 
-Maps and weapons fetch silently — if they fail, the user gets an empty dropdown with no indication anything went wrong. Should show a loading spinner and error message.
+~~Maps and weapons fetch silently — if they fail, the user gets an empty dropdown with no indication anything went wrong. Should show a loading spinner and error message.~~ **Addressed:** Added explicit loading state (spinner + "Loading game data...") and error state (error message + Retry button) as early returns before the main planner UI. CSS styles added for `.loading-state`, `.error-state`, and `.spinner` with keyframe animation.
 
-### 10. Duplicated gun-target pairing logic
+### 10. Duplicated gun-target pairing logic — fixed
 **File:** `crates/frontend/src/components/map_view.rs`
 
-Pairing logic appears in at least 3 places: gun-selected click near target, target placement mode click near existing target, and normal target placement. Could be extracted into a shared function.
+~~Pairing logic appears in at least 3 places: gun-selected click near target, target placement mode click near existing target, and normal target placement. Could be extracted into a shared function.~~ **Addressed:** Extracted `find_first_unpaired_target()` and `pair_first_unpaired_gun()` helper functions. All 3 call sites in `handle_marker_placement` (gun placement, target-near-existing, new target) now use the shared helpers.
 
 ### 11. No GraphQL resolver tests — fixed
 **File:** `crates/backend/src/graphql/mod.rs`
