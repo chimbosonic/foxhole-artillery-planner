@@ -144,6 +144,7 @@ pub fn CalculationDisplay(
                                     // Weapon selector
                                     select {
                                         class: "inline-weapon-select",
+                                        "aria-label": "Weapon for gun {gun_idx + 1}",
                                         value: "{current_slug}",
                                         onchange: {
                                             let idx = gun_idx;
@@ -180,6 +181,7 @@ pub fn CalculationDisplay(
                                     // Target selector
                                     select {
                                         class: "inline-weapon-select",
+                                        "aria-label": "Target for gun {gun_idx + 1}",
                                         value: "{current_target_val}",
                                         onchange: {
                                             let idx = gun_idx;

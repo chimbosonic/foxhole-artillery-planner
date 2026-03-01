@@ -80,24 +80,19 @@
 
 ~~`atan2(0, 0)` returns 0.0 for azimuth when gun and target overlap. Not validated anywhere — should at least document this.~~ **Addressed:** Unit test `test_gun_equals_target` now documents that `atan2(0, -0.0)` yields 180° due to IEEE 754 negative zero, distance=0, out-of-range, and accuracy clamps to `acc_radius[0]`.
 
-### 15. Plan save uses `alert()` for errors
+### 15. Plan save uses `alert()` for errors — fixed
 **File:** `crates/frontend/src/pages/planner.rs:554-559`
 
-Browser alert boxes are jarring. A toast or inline error message would be better UX.
+~~Browser alert boxes are jarring. A toast or inline error message would be better UX.~~ **Addressed:** Replaced `alert()` with a `save_error` signal and inline dismissible error bar in the Plan panel. Red-tinted `.save-error` CSS styles added. Error clears on dismiss click.
 
 ### 16. Hardcoded database/assets paths — fixed
 **File:** `crates/backend/src/main.rs:73, 76`
 
 ~~`"data/plans.redb"` and `"assets"` are hardcoded. Should be configurable via env vars for deployment flexibility.~~ **Addressed:** Now reads `DB_PATH` and `ASSETS_DIR` env vars with fallback defaults. Also uses `parent()` for directory creation instead of hardcoded `"data"`.
 
-### 17. Playwright only tests Chromium
-**File:** `playwright.config.ts:10`
+### 18. Missing accessibility attributes — fixed
 
-No Firefox or WebKit in the test matrix.
-
-### 18. Missing accessibility attributes
-
-SVG markers have `pointer-events: none` and no ARIA labels. Form inputs lack associated `<label>` elements. Wind buttons have no `aria-label`.
+~~SVG markers have `pointer-events: none` and no ARIA labels. Form inputs lack associated `<label>` elements. Wind buttons have no `aria-label`.~~ **Addressed:** Added `aria-label` attributes to all wind direction buttons, weapon selects (sidebar and inline), target selects, map select, plan name/URL inputs. SVG markers now wrapped in `<g role="img"><title>...</title></g>` groups. Wind strength label linked to input via `for`/`id`.
 
 ---
 

@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 pub fn PlanPanel(
     plan_name: Signal<String>,
     plan_url: Signal<Option<String>>,
+    save_error: Signal<Option<String>>,
     on_save: EventHandler<()>,
 ) -> Element {
     rsx! {
@@ -11,6 +12,7 @@ pub fn PlanPanel(
             h3 { "Plan" }
             input {
                 r#type: "text",
+                "aria-label": "Plan name",
                 placeholder: "Plan name...",
                 value: "{plan_name}",
                 oninput: move |evt: Event<FormData>| {
@@ -23,10 +25,20 @@ pub fn PlanPanel(
                     "Save & Share"
                 }
             }
+            if let Some(err) = &*save_error.read() {
+                div { class: "save-error",
+                    span { "{err}" }
+                    button {
+                        onclick: move |_| save_error.set(None),
+                        "\u{2715}"
+                    }
+                }
+            }
             if let Some(url) = &*plan_url.read() {
                 div { class: "plan-url",
                     input {
                         r#type: "text",
+                        "aria-label": "Plan URL",
                         readonly: true,
                         value: "{url}",
                     }

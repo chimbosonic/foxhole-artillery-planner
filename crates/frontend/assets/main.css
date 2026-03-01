@@ -425,6 +425,38 @@ button.secondary {
     font-size: 11px;
 }
 
+/* --- Save error --- */
+
+.save-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: rgba(220, 60, 60, 0.15);
+    border: 1px solid rgba(220, 60, 60, 0.4);
+    border-radius: 4px;
+    color: #f08080;
+    font-size: 12px;
+}
+
+.save-error span {
+    flex: 1;
+}
+
+.save-error button {
+    background: none;
+    color: #f08080;
+    padding: 0 4px;
+    font-size: 14px;
+    min-width: auto;
+    line-height: 1;
+}
+
+.save-error button:hover {
+    color: #fff;
+}
+
 /* --- Placement mode buttons --- */
 
 .placement-mode {

@@ -29,6 +29,7 @@ pub fn WindInput(
                 // First row: NW, N, NE
                 for &(deg, label) in &grid_order[0..3] {
                     button {
+                        "aria-label": "Wind direction {label}",
                         class: if current_dir == Some(deg) { "active" } else { "" },
                         onclick: move |_| {
                             on_before_change.call(());
@@ -43,6 +44,7 @@ pub fn WindInput(
                 }
                 // Second row: W, center, E
                 button {
+                    "aria-label": "Wind direction W",
                     class: if current_dir == Some(grid_order[3].0) { "active" } else { "" },
                     onclick: move |_| {
                         on_before_change.call(());
@@ -57,6 +59,7 @@ pub fn WindInput(
                 }
                 div { class: "center", "+" }
                 button {
+                    "aria-label": "Wind direction E",
                     class: if current_dir == Some(grid_order[4].0) { "active" } else { "" },
                     onclick: move |_| {
                         on_before_change.call(());
@@ -72,6 +75,7 @@ pub fn WindInput(
                 // Third row: SW, S, SE
                 for &(deg, label) in &grid_order[5..8] {
                     button {
+                        "aria-label": "Wind direction {label}",
                         class: if current_dir == Some(deg) { "active" } else { "" },
                         onclick: move |_| {
                             on_before_change.call(());
@@ -86,8 +90,9 @@ pub fn WindInput(
                 }
             }
             div { class: "strength-row",
-                label { "Strength:" }
+                label { r#for: "wind-strength", "Strength:" }
                 input {
+                    id: "wind-strength",
                     r#type: "range",
                     min: "0",
                     max: "5",

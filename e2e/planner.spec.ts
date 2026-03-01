@@ -796,6 +796,9 @@ test.describe("Foxhole Artillery Planner", () => {
   });
 
   test("keyboard shortcuts work on fresh page load without clicking", async ({ page }) => {
+    // Ensure the app div has focus (auto-focus effect may not have fired yet)
+    await page.locator(".app").focus();
+
     // Don't click anything — just press 't' directly after page load
     await page.keyboard.press("t");
 
@@ -1412,7 +1415,7 @@ test.describe("Error handling", () => {
     await page.waitForSelector(".app", { timeout: 15_000 });
   });
 
-  test("shows alert on save failure", async ({ page }) => {
+  test("shows inline error on save failure", async ({ page }) => {
     // Intercept GraphQL endpoint and return 500 for mutations
     await page.route("**/graphql", async (route) => {
       const request = route.request();
@@ -1439,19 +1442,19 @@ test.describe("Error handling", () => {
       position: { x: box!.width / 2, y: box!.height / 2 },
     });
 
-    // Set up dialog handler before clicking save
-    const dialogPromise = page.waitForEvent("dialog");
-
     // Click Save & Share
     const planPanel = page.locator('.panel:has(h3:text("Plan"))');
     const saveButton = planPanel.locator("button", { hasText: "Save & Share" });
     await saveButton.click();
 
-    // Verify alert dialog appears
-    const dialog = await dialogPromise;
-    expect(dialog.type()).toBe("alert");
-    expect(dialog.message().length).toBeGreaterThan(0);
-    await dialog.accept();
+    // Verify inline error appears
+    const errorBar = planPanel.locator(".save-error");
+    await expect(errorBar).toBeVisible({ timeout: 5000 });
+    await expect(errorBar.locator("span")).toContainText("Failed to save");
+
+    // Dismiss the error
+    await errorBar.locator("button").click();
+    await expect(errorBar).not.toBeVisible();
   });
 });
 

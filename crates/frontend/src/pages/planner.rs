@@ -147,6 +147,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     let mut plan_name = use_signal(|| "New Plan".to_string());
     let mut plan_url = use_signal(|| None::<String>);
     let mut firing_solutions = use_signal(Vec::<Option<FiringSolutionData>>::new);
+    let mut save_error = use_signal(|| None::<String>);
 
     // Undo / redo stacks
     let mut undo_stack = use_signal(Vec::<PlanSnapshot>::new);
@@ -557,6 +558,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                 div { class: "panel",
                     h3 { "Map" }
                     select {
+                        "aria-label": "Select map",
                         value: "{selected_map}",
                         onchange: move |evt: Event<FormData>| {
                             push_snapshot();
@@ -604,6 +606,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                 PlanPanel {
                     plan_name: plan_name,
                     plan_url: plan_url,
+                    save_error: save_error,
                     on_save: move |_| {
                         let map = selected_map.read().clone();
                         let wids = gun_weapon_ids.read().clone();
@@ -637,10 +640,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                                     plan_url.set(Some(api::build_plan_url(&origin, &plan.id)));
                                 }
                                 Err(e) => {
-                                    web_sys::window()
-                                        .unwrap()
-                                        .alert_with_message(&format!("Failed to save: {}", e))
-                                        .ok();
+                                    save_error.set(Some(format!("Failed to save: {e}")));
                                 }
                             }
                         });

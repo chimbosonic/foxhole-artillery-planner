@@ -483,6 +483,7 @@ fn build_gun_markers(
         let tsw = 4.0 * s;
         let label = marker_label("GUN", i, total);
         let gun_color = colors.gun;
+        svg.push_str(&format!(r##"<g role="img"><title>{label}</title>"##));
         svg.push_str(&format!(
             r##"<circle cx="{gx}" cy="{gy}" r="{r}" fill="{gun_color}" stroke="white" stroke-width="{sw}"/>"##
         ));
@@ -497,6 +498,7 @@ fn build_gun_markers(
         {
             build_selection_ring(svg, gx, gy, s);
         }
+        svg.push_str("</g>");
     }
 }
 
@@ -518,6 +520,7 @@ fn build_target_markers(
         let label = marker_label("TARGET", i, total);
         let target_color = colors.target;
         let target_label = colors.target_label;
+        svg.push_str(&format!(r##"<g role="img"><title>{label}</title>"##));
         svg.push_str(&format!(
             r##"<line x1="{}" y1="{ty}" x2="{}" y2="{ty}" stroke="{target_color}" stroke-width="{sw}"/>"##,
             tx - arm,
@@ -542,6 +545,7 @@ fn build_target_markers(
         {
             build_selection_ring(svg, tx, ty, s);
         }
+        svg.push_str("</g>");
     }
 }
 
@@ -562,6 +566,7 @@ fn build_spotter_markers(
         let label = marker_label("SPOTTER", i, total);
         let spotter_color = colors.spotter;
         let spotter_label = colors.spotter_label;
+        svg.push_str(&format!(r##"<g role="img"><title>{label}</title>"##));
         svg.push_str(&format!(
             r##"<circle cx="{sx}" cy="{sy}" r="{r}" fill="{spotter_color}" stroke="white" stroke-width="{sw}"/>"##
         ));
@@ -576,6 +581,7 @@ fn build_spotter_markers(
         {
             build_selection_ring(svg, sx, sy, s);
         }
+        svg.push_str("</g>");
     }
 }
 

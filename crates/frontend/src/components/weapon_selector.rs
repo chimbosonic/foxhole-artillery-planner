@@ -17,6 +17,7 @@ pub fn WeaponSelector(weapons: Vec<WeaponData>, selected_weapon: Signal<String>)
         div { class: "panel",
             h3 { "Active Weapon" }
             select {
+                "aria-label": "Select weapon",
                 value: "{selected_weapon}",
                 onchange: move |evt: Event<FormData>| {
                     selected_weapon.set(evt.value().to_string());
