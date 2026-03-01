@@ -2,25 +2,25 @@
 
 ## High Impact
 
-### 1. SVG regenerated on every render
-**File:** `crates/frontend/src/components/map_view.rs:657`
+### 1. SVG regenerated on every render — fixed
+**File:** `crates/frontend/src/components/map_view.rs`
 
-The entire SVG string (~8KB+) is rebuilt on every zoom, pan, and mousemove. This is the biggest performance bottleneck. Memoizing it so it only rebuilds when markers/pairings/faction change (not zoom) would help significantly.
+~~The entire SVG string (~8KB+) is rebuilt on every zoom, pan, and mousemove. This is the biggest performance bottleneck. Memoizing it so it only rebuilds when markers/pairings/faction change (not zoom) would help significantly.~~ **Addressed:** Wrapped SVG generation in `use_memo` so it only recomputes when positions, zoom, selection, faction, weapons, pairings, or accuracy radii change. Pan/drag signals are read outside the memo, so panning only updates the CSS transform. Also converted `accuracy_radii_px` from a plain `Vec` prop to a `Memo`/`ReadSignal` so the memo can reactively track wind-driven accuracy changes.
 
 ### 2. No responsive layout
 **File:** `crates/frontend/assets/main.css`
 
 Zero `@media` queries. The `320px` sidebar is fixed — the app is completely unusable on mobile or small screens. Even a simple collapse-sidebar breakpoint at 768px would help.
 
-### 3. `.unwrap()` on GraphQL context data
-**File:** `crates/backend/src/graphql/mod.rs:217, 238, 268, 302, etc.`
-
-About a dozen `ctx.data::<Arc<...>>().unwrap()` calls. If context data is ever misconfigured, the server panics and crashes. These should return GraphQL errors instead.
-
-### 4. No input validation on GraphQL mutations
+### 3. `.unwrap()` on GraphQL context data — fixed
 **File:** `crates/backend/src/graphql/mod.rs`
 
-Plan names have no length limit, coordinates aren't bounds-checked (could be NaN/Infinity), `gun_target_indices` can reference out-of-bounds targets, wind direction isn't validated to 0-360. A crafted request could produce garbage data.
+~~About a dozen `ctx.data::<Arc<...>>().unwrap()` calls. If context data is ever misconfigured, the server panics and crashes. These should return GraphQL errors instead.~~ **Addressed:** Added `ctx_data<T>()` helper that returns `async_graphql::Error` instead of panicking. All 13 `.unwrap()` calls replaced. Return types for `maps` and `weapons` queries updated to `Result`. 10 tests verify every resolver returns a clean error when context is missing.
+
+### 4. No input validation on GraphQL mutations — fixed
+**File:** `crates/backend/src/graphql/mod.rs`
+
+~~Plan names have no length limit, coordinates aren't bounds-checked (could be NaN/Infinity), `gun_target_indices` can reference out-of-bounds targets, wind direction isn't validated to 0-360. A crafted request could produce garbage data.~~ **Addressed:** Added field-level validators (`validate_name`, `validate_map_id`, `validate_weapon_ids`, `validate_position`, `validate_positions`, `validate_gun_target_indices`, `validate_wind_direction`, `validate_wind_strength`) called from `validate_create_plan` and `validate_update_plan`. Rejects: names >200 chars, unknown map/weapon IDs, NaN/Infinity/out-of-bounds coordinates, out-of-bounds target indices, wind direction outside [0,360), wind strength >5. 15 tests cover validation and happy paths.
 
 ### 5. Permissive CORS
 **File:** `crates/backend/src/main.rs:68`
@@ -56,10 +56,10 @@ Maps and weapons fetch silently — if they fail, the user gets an empty dropdow
 
 Pairing logic appears in at least 3 places: gun-selected click near target, target placement mode click near existing target, and normal target placement. Could be extracted into a shared function.
 
-### 11. No GraphQL resolver tests
+### 11. No GraphQL resolver tests — fixed
 **File:** `crates/backend/src/graphql/mod.rs`
 
-Zero unit tests for any query or mutation handler. All backend logic is only tested via E2E, which is slow and can't cover edge cases well.
+~~Zero unit tests for any query or mutation handler. All backend logic is only tested via E2E, which is slow and can't cover edge cases well.~~ **Addressed:** 25 unit tests added covering missing-context errors (10), valid-context smoke tests (2), and input validation (13 — bad maps, bad weapons, out-of-bounds positions, negative coords, wind limits, index bounds, plus happy paths).
 
 ### 12. `println!` instead of structured logging
 **File:** `crates/backend/src/main.rs:24, 85-86`
@@ -106,6 +106,6 @@ SVG markers have `pointer-events: none` and no ARIA labels. Form inputs lack ass
 - ~~No E2E test for plan save-and-load round trip~~ **Added:** `e2e/planner.spec.ts` — "Plan save and load" describe block with full save/navigate/verify round trip
 - ~~No E2E test for localStorage persistence of faction across reload~~ **Added:** `e2e/planner.spec.ts` — "localStorage faction persists across reload" in Theme toggle block
 - ~~No test for API/network failure scenarios~~ **Added:** `e2e/planner.spec.ts` — "Error handling" describe block using `page.route()` to intercept GraphQL with 500
-- No unit tests for backend GraphQL resolvers
+- ~~No unit tests for backend GraphQL resolvers~~ **Added:** `crates/backend/src/graphql/mod.rs` — 25 tests (missing-context errors, validation rejections, happy paths)
 - ~~No unit test for gun==target, wind strength >5, or NaN coordinate edge cases~~ **Added:** `crates/shared/src/calc.rs` — 5 new edge case tests (gun==target, wind strength 10, NaN, Infinity, wind strength 0)
 - **Added:** `crates/backend/src/storage/mod.rs` — 6 new Plan CRUD tests (save/get, not-found, delete, count, overwrite)

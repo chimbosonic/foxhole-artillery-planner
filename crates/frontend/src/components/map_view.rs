@@ -585,7 +585,7 @@ pub fn MapView(
     gun_target_indices: Signal<Vec<Option<usize>>>,
     selected_weapon_slug: Signal<String>,
     weapons: Vec<WeaponData>,
-    accuracy_radii_px: Vec<Option<f64>>,
+    accuracy_radii_px: ReadSignal<Vec<Option<f64>>>,
     selected_marker: Signal<Option<SelectedMarker>>,
     undo_stack: Signal<Vec<PlanSnapshot>>,
     redo_stack: Signal<Vec<PlanSnapshot>>,
@@ -636,44 +636,50 @@ pub fn MapView(
     let mut drag_start_pan_x = use_signal(|| 0.0_f64);
     let mut drag_start_pan_y = use_signal(|| 0.0_f64);
 
-    // Read marker positions for SVG rendering
-    let guns = gun_positions.read().clone();
-    let targets = target_positions.read().clone();
-    let spotters = spotter_positions.read().clone();
-    let wids = gun_weapon_ids.read().clone();
-    let pairings = gun_target_indices.read().clone();
+    // Memoize SVG generation — only recomputes when positions, zoom, selection,
+    // faction, weapons, pairings, or accuracy radii change. Pan changes (pan_x/pan_y)
+    // are read outside this memo so they don't trigger SVG rebuilds.
+    let svg_html = use_memo(move || {
+        let guns = gun_positions.read().clone();
+        let targets = target_positions.read().clone();
+        let spotters = spotter_positions.read().clone();
+        let wids = gun_weapon_ids.read().clone();
+        let pairings = gun_target_indices.read().clone();
+        let acc_radii = accuracy_radii_px.read();
 
-    // Resolve per-gun weapon data
-    let gun_weapons: Vec<Option<&WeaponData>> = wids
-        .iter()
-        .map(|slug| weapons.iter().find(|w| w.slug == *slug))
-        .collect();
+        let gun_weapons: Vec<Option<&WeaponData>> = wids
+            .iter()
+            .map(|slug| weapons.iter().find(|w| w.slug == *slug))
+            .collect();
 
-    // Snapshot current transform for the render
-    let cur_zoom = *zoom.read();
-    let cur_selected = *selected_marker.read();
-    let colors = theme_colors(*faction.read());
+        let cur_zoom = *zoom.read();
+        let cur_selected = *selected_marker.read();
+        let colors = theme_colors(*faction.read());
 
-    let svg_content = build_svg_content(
-        &guns,
-        &targets,
-        &spotters,
-        &gun_weapons,
-        &pairings,
-        &accuracy_radii_px,
-        cur_zoom,
-        cur_selected,
-        colors,
-    );
-    let svg_html = format!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;">{}</svg>"#,
-        grid::MAP_WIDTH_PX,
-        grid::MAP_HEIGHT_PX,
-        svg_content
-    );
+        let svg_content = build_svg_content(
+            &guns,
+            &targets,
+            &spotters,
+            &gun_weapons,
+            &pairings,
+            &acc_radii,
+            cur_zoom,
+            cur_selected,
+            colors,
+        );
+        format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;">{}</svg>"#,
+            grid::MAP_WIDTH_PX,
+            grid::MAP_HEIGHT_PX,
+            svg_content
+        )
+    });
+
     let cur_pan_x = *pan_x.read();
     let cur_pan_y = *pan_y.read();
+    let cur_zoom = *zoom.read();
     let dragging = *is_dragging.read();
+    let cur_selected = *selected_marker.read();
 
     let transform_style = format!(
         "transform: translate({cur_pan_x}px, {cur_pan_y}px) scale({cur_zoom}); transform-origin: 0 0;"
@@ -687,7 +693,11 @@ pub fn MapView(
         "map-container"
     };
 
-    // Build coord readout tags
+    // Build coord readout tags (fresh signal reads — cheap, Dioxus deduplicates tracking)
+    let guns = gun_positions.read();
+    let targets = target_positions.read();
+    let spotters = spotter_positions.read();
+
     let gun_tags: Vec<(String, String)> = guns
         .iter()
         .enumerate()

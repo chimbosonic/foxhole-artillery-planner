@@ -282,14 +282,16 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     let current_map = selected_map.read().clone();
 
     // Compute accuracy radii in image pixels for the map overlay (one per gun, using pairings)
-    let accuracy_radii_px: Vec<Option<f64>> = firing_solutions
-        .read()
-        .iter()
-        .map(|sol| {
-            sol.as_ref()
-                .map(|s| coords::meters_to_image_px(s.accuracy_radius))
-        })
-        .collect();
+    let accuracy_radii_px = use_memo(move || {
+        firing_solutions
+            .read()
+            .iter()
+            .map(|sol| {
+                sol.as_ref()
+                    .map(|s| coords::meters_to_image_px(s.accuracy_radius))
+            })
+            .collect::<Vec<_>>()
+    });
 
     // Closure to push undo snapshot from planner-level code
     let mut push_snapshot = move || {
