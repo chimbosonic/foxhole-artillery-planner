@@ -1,0 +1,111 @@
+# Code Review
+
+## High Impact
+
+### 1. SVG regenerated on every render
+**File:** `crates/frontend/src/components/map_view.rs:657`
+
+The entire SVG string (~8KB+) is rebuilt on every zoom, pan, and mousemove. This is the biggest performance bottleneck. Memoizing it so it only rebuilds when markers/pairings/faction change (not zoom) would help significantly.
+
+### 2. No responsive layout
+**File:** `crates/frontend/assets/main.css`
+
+Zero `@media` queries. The `320px` sidebar is fixed — the app is completely unusable on mobile or small screens. Even a simple collapse-sidebar breakpoint at 768px would help.
+
+### 3. `.unwrap()` on GraphQL context data
+**File:** `crates/backend/src/graphql/mod.rs:217, 238, 268, 302, etc.`
+
+About a dozen `ctx.data::<Arc<...>>().unwrap()` calls. If context data is ever misconfigured, the server panics and crashes. These should return GraphQL errors instead.
+
+### 4. No input validation on GraphQL mutations
+**File:** `crates/backend/src/graphql/mod.rs`
+
+Plan names have no length limit, coordinates aren't bounds-checked (could be NaN/Infinity), `gun_target_indices` can reference out-of-bounds targets, wind direction isn't validated to 0-360. A crafted request could produce garbage data.
+
+### 5. Permissive CORS
+**File:** `crates/backend/src/main.rs:68`
+
+`CorsLayer::permissive()` allows any origin. Fine for a personal tool, but if this ever faces the internet, any site can make requests to the API.
+
+---
+
+## Medium Impact
+
+### 6. Cloning vectors on every render
+**File:** `crates/frontend/src/components/map_view.rs:640-650`
+
+Five `.read().clone()` calls on signal vectors every render cycle. With many markers this creates unnecessary allocations. Could use refs directly.
+
+### 7. Hardcoded CSS colors not covered by theme toggle
+**File:** `crates/frontend/assets/main.css:215, 219`
+
+`.target-label { fill: #ffe0b3 }` and `.spotter-label { fill: #b3d4f0 }` are hardcoded — they won't change with the Colonial theme. Should use CSS variables.
+
+### 8. `u32` for indices instead of `usize`
+**File:** `crates/shared/src/models.rs:92`
+
+`gun_target_indices: Vec<Option<u32>>` forces casts to `usize` everywhere it's used. Creates boilerplate and a theoretical truncation risk.
+
+### 9. No loading/error UI for resource fetches
+**File:** `crates/frontend/src/pages/planner.rs:132-133`
+
+Maps and weapons fetch silently — if they fail, the user gets an empty dropdown with no indication anything went wrong. Should show a loading spinner and error message.
+
+### 10. Duplicated gun-target pairing logic
+**File:** `crates/frontend/src/components/map_view.rs`
+
+Pairing logic appears in at least 3 places: gun-selected click near target, target placement mode click near existing target, and normal target placement. Could be extracted into a shared function.
+
+### 11. No GraphQL resolver tests
+**File:** `crates/backend/src/graphql/mod.rs`
+
+Zero unit tests for any query or mutation handler. All backend logic is only tested via E2E, which is slow and can't cover edge cases well.
+
+### 12. `println!` instead of structured logging
+**File:** `crates/backend/src/main.rs:24, 85-86`
+
+No log levels, timestamps, or structured output. Makes production debugging difficult.
+
+---
+
+## Low Impact (easy wins)
+
+### 13. Unreachable match arm
+**File:** `crates/shared/src/grid.rs:84`
+
+The `_ => 5` default in keypad mapping is unreachable since all 9 combinations of `(0..=2, 0..=2)` are covered. Should be `unreachable!()`.
+
+### 14. Gun == target edge case — documented
+**File:** `crates/shared/src/calc.rs`
+
+~~`atan2(0, 0)` returns 0.0 for azimuth when gun and target overlap. Not validated anywhere — should at least document this.~~ **Addressed:** Unit test `test_gun_equals_target` now documents that `atan2(0, -0.0)` yields 180° due to IEEE 754 negative zero, distance=0, out-of-range, and accuracy clamps to `acc_radius[0]`.
+
+### 15. Plan save uses `alert()` for errors
+**File:** `crates/frontend/src/pages/planner.rs:554-559`
+
+Browser alert boxes are jarring. A toast or inline error message would be better UX.
+
+### 16. Hardcoded database/assets paths
+**File:** `crates/backend/src/main.rs:73, 76`
+
+`"data/plans.redb"` and `"assets"` are hardcoded. Should be configurable via env vars for deployment flexibility.
+
+### 17. Playwright only tests Chromium
+**File:** `playwright.config.ts:10`
+
+No Firefox or WebKit in the test matrix.
+
+### 18. Missing accessibility attributes
+
+SVG markers have `pointer-events: none` and no ARIA labels. Form inputs lack associated `<label>` elements. Wind buttons have no `aria-label`.
+
+---
+
+## Test Coverage Gaps
+
+- ~~No E2E test for plan save-and-load round trip~~ **Added:** `e2e/planner.spec.ts` — "Plan save and load" describe block with full save/navigate/verify round trip
+- ~~No E2E test for localStorage persistence of faction across reload~~ **Added:** `e2e/planner.spec.ts` — "localStorage faction persists across reload" in Theme toggle block
+- ~~No test for API/network failure scenarios~~ **Added:** `e2e/planner.spec.ts` — "Error handling" describe block using `page.route()` to intercept GraphQL with 500
+- No unit tests for backend GraphQL resolvers
+- ~~No unit test for gun==target, wind strength >5, or NaN coordinate edge cases~~ **Added:** `crates/shared/src/calc.rs` — 5 new edge case tests (gun==target, wind strength 10, NaN, Infinity, wind strength 0)
+- **Added:** `crates/backend/src/storage/mod.rs` — 6 new Plan CRUD tests (save/get, not-found, delete, count, overwrite)

@@ -1271,6 +1271,27 @@ test.describe("Theme toggle", () => {
     expect(accent).toBe("#cf8e3e");
   });
 
+  test("localStorage faction persists across reload", async ({ page }) => {
+    // Click Colonial
+    const colonialBtn = page.locator(".header .faction-toggle button", { hasText: "Colonial" });
+    await colonialBtn.click();
+
+    // Verify Colonial is active
+    const app = page.locator(".app");
+    await expect(app).toHaveClass(/colonial/);
+    await expect(colonialBtn).toHaveClass(/active/);
+
+    // Reload the page
+    await page.reload();
+    await page.waitForSelector(".app", { timeout: 15_000 });
+
+    // Verify Colonial persisted
+    await expect(page.locator(".app")).toHaveClass(/colonial/);
+    await expect(
+      page.locator(".header .faction-toggle button", { hasText: "Colonial" }),
+    ).toHaveClass(/active/);
+  });
+
   test("gun and target markers render correctly in Colonial theme", async ({
     page,
   }) => {
@@ -1309,5 +1330,127 @@ test.describe("Theme toggle", () => {
       '.map-container svg circle[fill="#6fbf5e"]',
     );
     await expect(targetMarker.first()).toBeVisible({ timeout: 5000 });
+  });
+});
+
+test.describe("Plan save and load", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await page.waitForSelector(".app", { timeout: 15_000 });
+  });
+
+  test("saving a plan and loading it preserves markers", async ({ page }) => {
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+
+    // Select a weapon so we have a full plan
+    const weaponSelect = page
+      .locator('.panel:has(h3:text("Active Weapon")) select')
+      .first();
+    const firstWeapon = weaponSelect.locator("optgroup option").first();
+    const weaponValue = await firstWeapon.getAttribute("value");
+    await weaponSelect.selectOption(weaponValue!);
+
+    // Place a gun
+    await page
+      .locator(".placement-mode button", { hasText: "Gun" })
+      .click();
+    await mapContainer.click({
+      position: { x: box!.width * 0.3, y: box!.height * 0.4 },
+    });
+
+    // Place a target
+    await page
+      .locator(".placement-mode button", { hasText: "Target" })
+      .click();
+    await mapContainer.click({
+      position: { x: box!.width * 0.7, y: box!.height * 0.6 },
+    });
+
+    // Wait for markers to appear
+    const svg = page.locator(".map-container svg");
+    await expect(svg.locator('text:text("GUN")')).toBeVisible({ timeout: 5000 });
+    await expect(svg.locator('text:text("TARGET")')).toBeVisible({ timeout: 5000 });
+
+    // Type a custom plan name
+    const planPanel = page.locator('.panel:has(h3:text("Plan"))');
+    const nameInput = planPanel.locator('input[type="text"]');
+    await nameInput.fill("E2E Test Plan");
+
+    // Click Save & Share
+    const saveButton = planPanel.locator("button", { hasText: "Save & Share" });
+    await saveButton.click();
+
+    // Wait for the plan URL to appear
+    const planUrlInput = planPanel.locator(".plan-url input[readonly]");
+    await expect(planUrlInput).toBeVisible({ timeout: 10_000 });
+
+    // Extract the plan URL path
+    const planUrl = await planUrlInput.inputValue();
+    expect(planUrl).toContain("/plan/");
+    const urlPath = new URL(planUrl).pathname;
+
+    // Navigate to the saved plan URL
+    await page.goto(urlPath);
+    await page.waitForSelector(".app", { timeout: 15_000 });
+
+    // Verify gun and target markers are present in SVG
+    const loadedSvg = page.locator(".map-container svg");
+    await expect(loadedSvg.locator('text:text("GUN")')).toBeVisible({ timeout: 10_000 });
+    await expect(loadedSvg.locator('text:text("TARGET")')).toBeVisible({ timeout: 10_000 });
+
+    // Verify coordinate readout tags show positions
+    await expect(page.locator(".coord-tag.gun-tag")).toBeVisible();
+    await expect(page.locator(".coord-tag.target-tag")).toBeVisible();
+  });
+});
+
+test.describe("Error handling", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await page.waitForSelector(".app", { timeout: 15_000 });
+  });
+
+  test("shows alert on save failure", async ({ page }) => {
+    // Intercept GraphQL endpoint and return 500 for mutations
+    await page.route("**/graphql", async (route) => {
+      const request = route.request();
+      const postData = request.postData();
+      if (postData && postData.includes("createPlan")) {
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ errors: [{ message: "Server error" }] }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    // Place a gun on the map
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await page
+      .locator(".placement-mode button", { hasText: "Gun" })
+      .click();
+    await mapContainer.click({
+      position: { x: box!.width / 2, y: box!.height / 2 },
+    });
+
+    // Set up dialog handler before clicking save
+    const dialogPromise = page.waitForEvent("dialog");
+
+    // Click Save & Share
+    const planPanel = page.locator('.panel:has(h3:text("Plan"))');
+    const saveButton = planPanel.locator("button", { hasText: "Save & Share" });
+    await saveButton.click();
+
+    // Verify alert dialog appears
+    const dialog = await dialogPromise;
+    expect(dialog.type()).toBe("alert");
+    expect(dialog.message().length).toBeGreaterThan(0);
+    await dialog.accept();
   });
 });

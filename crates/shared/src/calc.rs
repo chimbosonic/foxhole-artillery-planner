@@ -290,4 +290,82 @@ mod tests {
         let sol = firing_solution(gun, target, &w, Some(&wind));
         assert!(sol.wind_adjusted_azimuth.is_none());
     }
+
+    #[test]
+    fn test_gun_equals_target() {
+        let pos = Position { x: 500.0, y: 500.0 };
+        let w = test_weapon();
+        let sol = firing_solution(pos, pos, &w, None);
+        assert!((sol.distance - 0.0).abs() < 1e-9);
+        // atan2(0.0, -0.0) = π → 180° due to IEEE 754 negative zero from -dy
+        assert!((sol.azimuth - 180.0).abs() < 1e-9);
+        // 0 < min_range(100), so out of range
+        assert!(!sol.in_range);
+        // At distance 0, t clamps to 0 → acc_radius[0]
+        assert!((sol.accuracy_radius - 10.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_wind_strength_above_five() {
+        // Wind strength is not clamped — strength=10 should produce 2x the drift of strength=5
+        let w = test_weapon();
+        let gun = Position { x: 0.0, y: 0.0 };
+        let target = Position { x: 0.0, y: -300.0 }; // max range, north
+
+        let wind5 = WindInput {
+            direction: 270.0,
+            strength: 5,
+        };
+        let sol5 = firing_solution(gun, target, &w, Some(&wind5));
+
+        let wind10 = WindInput {
+            direction: 270.0,
+            strength: 10,
+        };
+        let sol10 = firing_solution(gun, target, &w, Some(&wind10));
+
+        let drift5 = sol5.wind_offset_meters.unwrap();
+        let drift10 = sol10.wind_offset_meters.unwrap();
+        assert!((drift10 - drift5 * 2.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_nan_coordinate_propagates() {
+        let gun = Position { x: f64::NAN, y: 0.0 };
+        let target = Position { x: 100.0, y: 0.0 };
+        let w = test_weapon();
+        let sol = firing_solution(gun, target, &w, None);
+        assert!(sol.distance.is_nan());
+        assert!(sol.azimuth.is_nan());
+        assert!(!sol.in_range);
+    }
+
+    #[test]
+    fn test_infinity_coordinate() {
+        let gun = Position {
+            x: f64::INFINITY,
+            y: 0.0,
+        };
+        let target = Position { x: 0.0, y: 0.0 };
+        let w = test_weapon();
+        let sol = firing_solution(gun, target, &w, None);
+        assert!(sol.distance.is_infinite());
+        assert!(!sol.in_range);
+    }
+
+    #[test]
+    fn test_wind_strength_zero_no_adjustment_direct() {
+        // Verify via firing_solution that strength=0 produces no wind adjustments
+        let gun = Position { x: 0.0, y: 0.0 };
+        let target = Position { x: 0.0, y: -200.0 };
+        let w = test_weapon();
+        let wind = WindInput {
+            direction: 90.0,
+            strength: 0,
+        };
+        let sol = firing_solution(gun, target, &w, Some(&wind));
+        assert!(sol.wind_adjusted_azimuth.is_none());
+        assert!(sol.wind_adjusted_distance.is_none());
+        assert!(sol.wind_offset_meters.is_none());
+    }
 }

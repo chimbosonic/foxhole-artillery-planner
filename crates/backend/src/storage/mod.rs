@@ -227,4 +227,105 @@ mod tests {
         let (storage, _dir) = temp_storage();
         assert_eq!(storage.get_marker_placement_count("target").unwrap(), 0);
     }
+
+    fn test_plan(id: uuid::Uuid, name: &str) -> Plan {
+        use foxhole_shared::models::Position;
+        Plan {
+            id,
+            name: name.to_string(),
+            map_id: "test-map".to_string(),
+            weapon_ids: vec!["mortar".to_string()],
+            gun_position: None,
+            target_position: None,
+            spotter_position: None,
+            gun_positions: vec![Position { x: 100.0, y: 200.0 }],
+            target_positions: vec![Position { x: 300.0, y: 400.0 }],
+            spotter_positions: vec![],
+            gun_target_indices: vec![Some(0)],
+            wind_direction: Some(90.0),
+            wind_strength: 3,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_save_and_get_plan() {
+        let (storage, _dir) = temp_storage();
+        let id = uuid::Uuid::new_v4();
+        let plan = test_plan(id, "Test Plan");
+        storage.save_plan(&plan).unwrap();
+
+        let loaded = storage.get_plan(&id.to_string()).unwrap().unwrap();
+        assert_eq!(loaded.id, id);
+        assert_eq!(loaded.name, "Test Plan");
+        assert_eq!(loaded.map_id, "test-map");
+        assert_eq!(loaded.weapon_ids, vec!["mortar".to_string()]);
+        assert_eq!(loaded.gun_positions.len(), 1);
+        assert!((loaded.gun_positions[0].x - 100.0).abs() < 1e-9);
+        assert_eq!(loaded.target_positions.len(), 1);
+        assert_eq!(loaded.gun_target_indices, vec![Some(0)]);
+        assert_eq!(loaded.wind_direction, Some(90.0));
+        assert_eq!(loaded.wind_strength, 3);
+    }
+
+    #[test]
+    fn test_get_plan_not_found() {
+        let (storage, _dir) = temp_storage();
+        let result = storage.get_plan("nonexistent-id").unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_delete_plan() {
+        let (storage, _dir) = temp_storage();
+        let id = uuid::Uuid::new_v4();
+        let plan = test_plan(id, "To Delete");
+        storage.save_plan(&plan).unwrap();
+
+        let removed = storage.delete_plan(&id.to_string()).unwrap();
+        assert!(removed);
+
+        let loaded = storage.get_plan(&id.to_string()).unwrap();
+        assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn test_delete_plan_not_found() {
+        let (storage, _dir) = temp_storage();
+        let removed = storage.delete_plan("nonexistent").unwrap();
+        assert!(!removed);
+    }
+
+    #[test]
+    fn test_count_plans() {
+        let (storage, _dir) = temp_storage();
+        let ids: Vec<uuid::Uuid> = (0..3).map(|_| uuid::Uuid::new_v4()).collect();
+        for (i, id) in ids.iter().enumerate() {
+            storage
+                .save_plan(&test_plan(*id, &format!("Plan {}", i)))
+                .unwrap();
+        }
+        assert_eq!(storage.count_plans().unwrap(), 3);
+
+        storage.delete_plan(&ids[0].to_string()).unwrap();
+        assert_eq!(storage.count_plans().unwrap(), 2);
+    }
+
+    #[test]
+    fn test_save_plan_overwrites() {
+        let (storage, _dir) = temp_storage();
+        let id = uuid::Uuid::new_v4();
+
+        let plan1 = test_plan(id, "Original Name");
+        storage.save_plan(&plan1).unwrap();
+
+        let mut plan2 = test_plan(id, "Updated Name");
+        plan2.wind_strength = 5;
+        storage.save_plan(&plan2).unwrap();
+
+        let loaded = storage.get_plan(&id.to_string()).unwrap().unwrap();
+        assert_eq!(loaded.name, "Updated Name");
+        assert_eq!(loaded.wind_strength, 5);
+    }
 }
