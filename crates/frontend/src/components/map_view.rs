@@ -19,6 +19,54 @@ const ZOOM_STEP: f64 = 1.1;
 /// Distance threshold (in map-image pixels, before zoom) for right-click removal.
 const REMOVE_THRESHOLD: f64 = 60.0;
 
+// --- Faction theme colors for SVG markers ---
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Faction {
+    Warden,
+    Colonial,
+}
+
+struct ThemeColors {
+    gun: &'static str,
+    target: &'static str,
+    spotter: &'static str,
+    target_label: &'static str,
+    spotter_label: &'static str,
+    min_range_fill: &'static str,
+    firing_line_stroke: &'static str,
+    accuracy_fill: &'static str,
+}
+
+const WARDEN_COLORS: ThemeColors = ThemeColors {
+    gun: "#5ab882",
+    target: "#cf8e3e",
+    spotter: "#4a8fd4",
+    target_label: "#ffe0b3",
+    spotter_label: "#b3d4f0",
+    min_range_fill: "rgba(207,142,62,0.06)",
+    firing_line_stroke: "rgba(207,142,62,0.7)",
+    accuracy_fill: "rgba(207,142,62,0.15)",
+};
+
+const COLONIAL_COLORS: ThemeColors = ThemeColors {
+    gun: "#5ab882",
+    target: "#6fbf5e",
+    spotter: "#4a8fd4",
+    target_label: "#c8f0b3",
+    spotter_label: "#b3d4f0",
+    min_range_fill: "rgba(111,191,94,0.06)",
+    firing_line_stroke: "rgba(111,191,94,0.7)",
+    accuracy_fill: "rgba(111,191,94,0.15)",
+};
+
+fn theme_colors(faction: Faction) -> &'static ThemeColors {
+    match faction {
+        Faction::Warden => &WARDEN_COLORS,
+        Faction::Colonial => &COLONIAL_COLORS,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlacementMode {
     Gun,
@@ -184,6 +232,7 @@ fn build_svg_content(
     accuracy_radii_px: &[Option<f64>],
     zoom: f64,
     selected: Option<SelectedMarker>,
+    colors: &ThemeColors,
 ) -> String {
     let mut svg = String::with_capacity(8192);
 
@@ -193,8 +242,8 @@ fn build_svg_content(
         build_keypad_lines(&mut svg);
         build_keypad_labels(&mut svg);
     }
-    build_range_circles(&mut svg, guns, gun_weapons, zoom);
-    build_firing_lines(&mut svg, guns, targets, gun_target_indices, zoom);
+    build_range_circles(&mut svg, guns, gun_weapons, zoom, colors);
+    build_firing_lines(&mut svg, guns, targets, gun_target_indices, zoom, colors);
     build_accuracy_circles(
         &mut svg,
         guns,
@@ -202,10 +251,11 @@ fn build_svg_content(
         gun_target_indices,
         accuracy_radii_px,
         zoom,
+        colors,
     );
-    build_gun_markers(&mut svg, guns, zoom, selected);
-    build_target_markers(&mut svg, targets, zoom, selected);
-    build_spotter_markers(&mut svg, spotters, zoom, selected);
+    build_gun_markers(&mut svg, guns, zoom, selected, colors);
+    build_target_markers(&mut svg, targets, zoom, selected, colors);
+    build_spotter_markers(&mut svg, spotters, zoom, selected, colors);
 
     svg
 }
@@ -305,6 +355,7 @@ fn build_range_circles(
     guns: &[(f64, f64)],
     gun_weapons: &[Option<&WeaponData>],
     zoom: f64,
+    colors: &ThemeColors,
 ) {
     for (i, &(gx, gy)) in guns.iter().enumerate() {
         let Some(w) = gun_weapons.get(i).and_then(|o| *o) else {
@@ -313,15 +364,18 @@ fn build_range_circles(
         let s = 1.0 / zoom.min(5.0);
         let max_r = coords::meters_to_image_px(w.max_range);
         let sw1 = 3.0 * s;
+        let gun_color = colors.gun;
         svg.push_str(&format!(
-            r##"<circle cx="{gx}" cy="{gy}" r="{max_r}" fill="rgba(78,204,163,0.06)" stroke="#4ecca3" stroke-width="{sw1}" stroke-opacity="0.6"/>"##
+            r##"<circle cx="{gx}" cy="{gy}" r="{max_r}" fill="rgba(90,184,130,0.06)" stroke="{gun_color}" stroke-width="{sw1}" stroke-opacity="0.6"/>"##
         ));
         let min_r = coords::meters_to_image_px(w.min_range);
         let sw2 = 2.0 * s;
         let da1 = 8.0 * s;
         let da2 = 6.0 * s;
+        let min_fill = colors.min_range_fill;
+        let target_color = colors.target;
         svg.push_str(&format!(
-            r##"<circle cx="{gx}" cy="{gy}" r="{min_r}" fill="rgba(233,69,96,0.06)" stroke="#e94560" stroke-width="{sw2}" stroke-dasharray="{da1} {da2}" stroke-opacity="0.5"/>"##
+            r##"<circle cx="{gx}" cy="{gy}" r="{min_r}" fill="{min_fill}" stroke="{target_color}" stroke-width="{sw2}" stroke-dasharray="{da1} {da2}" stroke-opacity="0.5"/>"##
         ));
     }
 }
@@ -332,6 +386,7 @@ fn build_firing_lines(
     targets: &[(f64, f64)],
     gun_target_indices: &[Option<usize>],
     zoom: f64,
+    colors: &ThemeColors,
 ) {
     for (gun_idx, &(gx, gy)) in guns.iter().enumerate() {
         let target_idx = gun_target_indices.get(gun_idx).and_then(|o| *o);
@@ -341,8 +396,9 @@ fn build_firing_lines(
                 let sw = 3.0 * s;
                 let da1 = 12.0 * s;
                 let da2 = 8.0 * s;
+                let stroke = colors.firing_line_stroke;
                 svg.push_str(&format!(
-                    r#"<line x1="{gx}" y1="{gy}" x2="{tx}" y2="{ty}" stroke="rgba(233,69,96,0.7)" stroke-width="{sw}" stroke-dasharray="{da1} {da2}"/>"#
+                    r#"<line x1="{gx}" y1="{gy}" x2="{tx}" y2="{ty}" stroke="{stroke}" stroke-width="{sw}" stroke-dasharray="{da1} {da2}"/>"#
                 ));
             }
         }
@@ -356,6 +412,7 @@ fn build_accuracy_circles(
     gun_target_indices: &[Option<usize>],
     accuracy_radii_px: &[Option<f64>],
     zoom: f64,
+    colors: &ThemeColors,
 ) {
     // Draw accuracy circle at the target for each paired gun that has a solution
     for (gun_idx, _) in guns.iter().enumerate() {
@@ -367,8 +424,10 @@ fn build_accuracy_circles(
                 let sw = 2.0 * s;
                 let da1 = 6.0 * s;
                 let da2 = 4.0 * s;
+                let fill = colors.accuracy_fill;
+                let target_color = colors.target;
                 svg.push_str(&format!(
-                    r##"<circle cx="{tx}" cy="{ty}" r="{acc_r}" fill="rgba(233,69,96,0.15)" stroke="#e94560" stroke-width="{sw}" stroke-dasharray="{da1} {da2}"/>"##
+                    r##"<circle cx="{tx}" cy="{ty}" r="{acc_r}" fill="{fill}" stroke="{target_color}" stroke-width="{sw}" stroke-dasharray="{da1} {da2}"/>"##
                 ));
             }
         }
@@ -389,6 +448,7 @@ fn build_gun_markers(
     guns: &[(f64, f64)],
     zoom: f64,
     selected: Option<SelectedMarker>,
+    colors: &ThemeColors,
 ) {
     let total = guns.len();
     for (i, &(gx, gy)) in guns.iter().enumerate() {
@@ -399,8 +459,9 @@ fn build_gun_markers(
         let ty = gy - 20.0 * s;
         let tsw = 4.0 * s;
         let label = marker_label("GUN", i, total);
+        let gun_color = colors.gun;
         svg.push_str(&format!(
-            r##"<circle cx="{gx}" cy="{gy}" r="{r}" fill="#4ecca3" stroke="white" stroke-width="{sw}"/>"##
+            r##"<circle cx="{gx}" cy="{gy}" r="{r}" fill="{gun_color}" stroke="white" stroke-width="{sw}"/>"##
         ));
         svg.push_str(&format!(
             r##"<text x="{gx}" y="{ty}" fill="white" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
@@ -421,6 +482,7 @@ fn build_target_markers(
     targets: &[(f64, f64)],
     zoom: f64,
     selected: Option<SelectedMarker>,
+    colors: &ThemeColors,
 ) {
     let total = targets.len();
     for (i, &(tx, ty)) in targets.iter().enumerate() {
@@ -432,21 +494,23 @@ fn build_target_markers(
         let label_y = ty - 24.0 * s;
         let tsw = 4.0 * s;
         let label = marker_label("TARGET", i, total);
+        let target_color = colors.target;
+        let target_label = colors.target_label;
         svg.push_str(&format!(
-            r##"<line x1="{}" y1="{ty}" x2="{}" y2="{ty}" stroke="#e94560" stroke-width="{sw}"/>"##,
+            r##"<line x1="{}" y1="{ty}" x2="{}" y2="{ty}" stroke="{target_color}" stroke-width="{sw}"/>"##,
             tx - arm,
             tx + arm
         ));
         svg.push_str(&format!(
-            r##"<line x1="{tx}" y1="{}" x2="{tx}" y2="{}" stroke="#e94560" stroke-width="{sw}"/>"##,
+            r##"<line x1="{tx}" y1="{}" x2="{tx}" y2="{}" stroke="{target_color}" stroke-width="{sw}"/>"##,
             ty - arm,
             ty + arm
         ));
         svg.push_str(&format!(
-            r##"<circle cx="{tx}" cy="{ty}" r="{r}" fill="#e94560" stroke="white" stroke-width="{sw}"/>"##
+            r##"<circle cx="{tx}" cy="{ty}" r="{r}" fill="{target_color}" stroke="white" stroke-width="{sw}"/>"##
         ));
         svg.push_str(&format!(
-            r##"<text x="{tx}" y="{label_y}" fill="#ffcccc" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
+            r##"<text x="{tx}" y="{label_y}" fill="{target_label}" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
         ));
         if selected
             == Some(SelectedMarker {
@@ -464,6 +528,7 @@ fn build_spotter_markers(
     spotters: &[(f64, f64)],
     zoom: f64,
     selected: Option<SelectedMarker>,
+    colors: &ThemeColors,
 ) {
     let total = spotters.len();
     for (i, &(sx, sy)) in spotters.iter().enumerate() {
@@ -474,11 +539,13 @@ fn build_spotter_markers(
         let label_y = sy - 20.0 * s;
         let tsw = 4.0 * s;
         let label = marker_label("SPOTTER", i, total);
+        let spotter_color = colors.spotter;
+        let spotter_label = colors.spotter_label;
         svg.push_str(&format!(
-            r##"<circle cx="{sx}" cy="{sy}" r="{r}" fill="#7ec8e3" stroke="white" stroke-width="{sw}"/>"##
+            r##"<circle cx="{sx}" cy="{sy}" r="{r}" fill="{spotter_color}" stroke="white" stroke-width="{sw}"/>"##
         ));
         svg.push_str(&format!(
-            r##"<text x="{sx}" y="{label_y}" fill="#cce7ff" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
+            r##"<text x="{sx}" y="{label_y}" fill="{spotter_label}" font-size="{fs}" font-family="sans-serif" font-weight="700" text-anchor="middle" stroke="rgba(0,0,0,0.7)" stroke-width="{tsw}" paint-order="stroke">{label}</text>"##
         ));
         if selected
             == Some(SelectedMarker {
@@ -525,6 +592,7 @@ pub fn MapView(
     wind_direction: Signal<Option<f64>>,
     wind_strength: Signal<u32>,
     reset_view_counter: Signal<u64>,
+    faction: Signal<Faction>,
 ) -> Element {
     let image_url = format!("/static/images/maps/{}.webp", map_file_name);
 
@@ -584,6 +652,7 @@ pub fn MapView(
     // Snapshot current transform for the render
     let cur_zoom = *zoom.read();
     let cur_selected = *selected_marker.read();
+    let colors = theme_colors(*faction.read());
 
     let svg_content = build_svg_content(
         &guns,
@@ -594,6 +663,7 @@ pub fn MapView(
         &accuracy_radii_px,
         cur_zoom,
         cur_selected,
+        colors,
     );
     let svg_html = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;">{}</svg>"#,
@@ -947,7 +1017,7 @@ mod tests {
         // Gun 0 → Target 1, Gun 1 → Target 0
         let pairings = vec![Some(1), Some(0)];
         let mut svg = String::new();
-        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0);
+        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0, &WARDEN_COLORS);
         // Should draw line from gun 0 to target 1
         assert!(svg.contains(r#"x1="100""#));
         assert!(svg.contains(r#"y1="200""#));
@@ -966,7 +1036,7 @@ mod tests {
         let targets = vec![(150.0, 250.0)];
         let pairings = vec![None]; // Gun 0 unpaired
         let mut svg = String::new();
-        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0);
+        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0, &WARDEN_COLORS);
         assert!(
             svg.is_empty(),
             "Unpaired gun should not produce a firing line"
@@ -979,7 +1049,7 @@ mod tests {
         let targets = vec![(150.0, 250.0)];
         let pairings = vec![Some(5)]; // Out-of-bounds target index
         let mut svg = String::new();
-        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0);
+        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0, &WARDEN_COLORS);
         assert!(
             svg.is_empty(),
             "Invalid target index should not produce a firing line"
@@ -993,7 +1063,7 @@ mod tests {
         // Both guns target the same target
         let pairings = vec![Some(0), Some(0)];
         let mut svg = String::new();
-        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0);
+        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0, &WARDEN_COLORS);
         // Count the number of line elements — should be 2
         let line_count = svg.matches("<line").count();
         assert_eq!(
@@ -1011,7 +1081,7 @@ mod tests {
         let pairings = vec![Some(1)]; // Gun 0 → Target 1
         let accuracy = vec![Some(10.0)];
         let mut svg = String::new();
-        build_accuracy_circles(&mut svg, &guns, &targets, &pairings, &accuracy, 1.0);
+        build_accuracy_circles(&mut svg, &guns, &targets, &pairings, &accuracy, 1.0, &WARDEN_COLORS);
         // Circle should be at target 1's position
         assert!(svg.contains(r#"cx="350""#));
         assert!(svg.contains(r#"cy="450""#));
@@ -1026,7 +1096,7 @@ mod tests {
         let pairings = vec![None];
         let accuracy = vec![Some(10.0)];
         let mut svg = String::new();
-        build_accuracy_circles(&mut svg, &guns, &targets, &pairings, &accuracy, 1.0);
+        build_accuracy_circles(&mut svg, &guns, &targets, &pairings, &accuracy, 1.0, &WARDEN_COLORS);
         assert!(svg.is_empty());
     }
 

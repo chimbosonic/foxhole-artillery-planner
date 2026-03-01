@@ -1,13 +1,23 @@
 :root {
-    --bg-dark: #1a1a2e;
-    --bg-panel: #16213e;
-    --bg-input: #0f3460;
-    --accent: #e94560;
-    --accent-green: #4ecca3;
-    --accent-blue: #7ec8e3;
-    --text: #eee;
-    --text-dim: #999;
-    --border: #333;
+    --bg-dark: #141c28;
+    --bg-panel: #1a2840;
+    --bg-input: #1f3358;
+    --accent: #cf8e3e;
+    --accent-green: #5ab882;
+    --accent-blue: #4a8fd4;
+    --text: #d6dce6;
+    --text-dim: #7888a0;
+    --border: #283a58;
+}
+
+.app.colonial {
+    --bg-dark: #141e16;
+    --bg-panel: #1a3024;
+    --bg-input: #1f3f2e;
+    --accent: #6fbf5e;
+    --text: #d6e6d9;
+    --text-dim: #78a088;
+    --border: #28583a;
 }
 
 * {
@@ -131,14 +141,14 @@ body {
 /* --- Range circles --- */
 
 .range-circle-max {
-    fill: rgba(78, 204, 163, 0.06);
+    fill: rgba(90, 184, 130, 0.06);
     stroke: var(--accent-green);
     stroke-width: 1.5;
     stroke-opacity: 0.6;
 }
 
 .range-circle-min {
-    fill: rgba(233, 69, 96, 0.06);
+    fill: rgba(207, 142, 62, 0.06);
     stroke: var(--accent);
     stroke-width: 1;
     stroke-dasharray: 4 3;
@@ -148,7 +158,7 @@ body {
 /* --- Firing line --- */
 
 .firing-line {
-    stroke: rgba(233, 69, 96, 0.7);
+    stroke: rgba(207, 142, 62, 0.7);
     stroke-width: 1.5;
     stroke-dasharray: 6 4;
 }
@@ -156,7 +166,7 @@ body {
 /* --- Accuracy circle --- */
 
 .accuracy-circle {
-    fill: rgba(233, 69, 96, 0.15);
+    fill: rgba(207, 142, 62, 0.15);
     stroke: var(--accent);
     stroke-width: 1;
     stroke-dasharray: 3 2;
@@ -171,17 +181,17 @@ body {
 
 .gun-marker {
     fill: var(--accent-green);
-    filter: drop-shadow(0 0 4px rgba(78, 204, 163, 0.8));
+    filter: drop-shadow(0 0 4px rgba(90, 184, 130, 0.8));
 }
 
 .target-marker {
     fill: var(--accent);
-    filter: drop-shadow(0 0 4px rgba(233, 69, 96, 0.8));
+    filter: drop-shadow(0 0 4px rgba(207, 142, 62, 0.8));
 }
 
 .spotter-marker {
     fill: var(--accent-blue);
-    filter: drop-shadow(0 0 4px rgba(126, 200, 227, 0.8));
+    filter: drop-shadow(0 0 4px rgba(74, 143, 212, 0.8));
 }
 
 .crosshair {
@@ -202,11 +212,11 @@ body {
 }
 
 .target-label {
-    fill: #ffcccc;
+    fill: #ffe0b3;
 }
 
 .spotter-label {
-    fill: #cce7ff;
+    fill: #b3d4f0;
 }
 
 /* --- Coordinate readout (bottom-left of map) --- */
@@ -427,7 +437,7 @@ button.secondary {
 }
 
 .placement-mode button.active-target {
-    background: #e8a317;
+    background: var(--accent);
 }
 
 .placement-mode button.active-spotter {
@@ -502,13 +512,54 @@ button.secondary {
     outline: none;
 }
 
+/* --- Header right group (theme toggle + help) --- */
+
+.header-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.faction-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.faction-toggle button {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--bg-input);
+    color: var(--text-dim);
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.faction-toggle button:first-child {
+    border-right: 1px solid var(--border);
+}
+
+.faction-toggle button:hover:not(.active) {
+    background: var(--bg-panel);
+    color: var(--text);
+}
+
+.faction-toggle button.active {
+    background: var(--accent);
+    color: white;
+}
+
 /* --- Help button in header --- */
 
 .help-btn {
     background: var(--bg-input);
     font-size: 12px;
     padding: 4px 10px;
-    margin-left: auto;
 }
 
 /* --- Help overlay --- */

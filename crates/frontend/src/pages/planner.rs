@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 use crate::api::{self, FiringSolutionData, MapData, WeaponData};
 use crate::components::calculation_display::CalculationDisplay;
 use crate::components::help_overlay::HelpOverlay;
-use crate::components::map_view::{remove_marker, MapView, PlacementMode, SelectedMarker};
+use crate::components::map_view::{remove_marker, Faction, MapView, PlacementMode, SelectedMarker};
 use crate::components::plan_panel::PlanPanel;
 use crate::components::weapon_selector::WeaponSelector;
 use crate::components::wind_input::WindInput;
@@ -99,6 +99,33 @@ fn is_input_focused() -> bool {
     matches!(tag.as_str(), "INPUT" | "SELECT" | "TEXTAREA")
 }
 
+fn load_saved_faction() -> Faction {
+    let storage: Option<web_sys::Storage> = web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten());
+    storage
+        .and_then(|s| s.get_item("faction").ok().flatten())
+        .map(|v| {
+            if v == "colonial" {
+                Faction::Colonial
+            } else {
+                Faction::Warden
+            }
+        })
+        .unwrap_or(Faction::Warden)
+}
+
+fn save_faction(faction: Faction) {
+    let storage: Option<web_sys::Storage> = web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten());
+    if let Some(storage) = storage {
+        let val = match faction {
+            Faction::Warden => "warden",
+            Faction::Colonial => "colonial",
+        };
+        let _ = storage.set_item("faction", val);
+    }
+}
+
 #[component]
 pub fn Planner(plan_id: Option<String>) -> Element {
     // Data resources
@@ -128,6 +155,9 @@ pub fn Planner(plan_id: Option<String>) -> Element {
     // Help overlay and view-reset signaling
     let mut show_help = use_signal(|| false);
     let mut reset_view_counter = use_signal(|| 0u64);
+
+    // Faction theme
+    let mut faction = use_signal(load_saved_faction);
 
     // Auto-focus .app div on mount so keyboard shortcuts work immediately
     use_effect(|| {
@@ -275,9 +305,15 @@ pub fn Planner(plan_id: Option<String>) -> Element {
         push_undo(&mut undo_stack, &mut redo_stack, snap);
     };
 
+    let app_class = if *faction.read() == Faction::Colonial {
+        "app colonial"
+    } else {
+        "app"
+    };
+
     rsx! {
         div {
-            class: "app",
+            class: "{app_class}",
             tabindex: "0",
 
             onkeydown: move |evt: Event<KeyboardData>| {
@@ -406,6 +442,26 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                         class: if *placement_mode.read() == PlacementMode::Spotter { "active-spotter" } else { "" },
                         onclick: move |_| placement_mode.set(PlacementMode::Spotter),
                         "Spotter"
+                    }
+                }
+                div { class: "header-right",
+                    div { class: "faction-toggle",
+                        button {
+                            class: if *faction.read() == Faction::Warden { "active" } else { "" },
+                            onclick: move |_| {
+                                faction.set(Faction::Warden);
+                                save_faction(Faction::Warden);
+                            },
+                            "Warden"
+                        }
+                        button {
+                            class: if *faction.read() == Faction::Colonial { "active" } else { "" },
+                            onclick: move |_| {
+                                faction.set(Faction::Colonial);
+                                save_faction(Faction::Colonial);
+                            },
+                            "Colonial"
+                        }
                     }
                 }
             }
@@ -562,6 +618,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     wind_direction: wind_direction,
                     wind_strength: wind_strength,
                     reset_view_counter: reset_view_counter,
+                    faction: faction,
                 }
             }
 

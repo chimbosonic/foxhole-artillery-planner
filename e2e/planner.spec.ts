@@ -7,16 +7,16 @@ test.describe("Foxhole Artillery Planner", () => {
     await page.waitForSelector(".app", { timeout: 15_000 });
   });
 
-  test("page loads with dark theme and correct title", async ({ page }) => {
+  test("page loads with Warden theme and correct title", async ({ page }) => {
     await expect(page).toHaveTitle("Foxhole Artillery Planner");
 
-    // Verify dark theme is applied (CSS loaded)
+    // Verify Warden theme is applied (CSS loaded)
     const body = page.locator("body");
     const bgColor = await body.evaluate(
       (el) => getComputedStyle(el).backgroundColor,
     );
-    // --bg-dark: #1a1a2e → rgb(26, 26, 46)
-    expect(bgColor).toBe("rgb(26, 26, 46)");
+    // --bg-dark: #141c28 → rgb(20, 28, 40)
+    expect(bgColor).toBe("rgb(20, 28, 40)");
   });
 
   test("header and placement mode buttons render", async ({ page }) => {
@@ -1104,5 +1104,210 @@ test.describe("Placement tracking", () => {
     });
     const json = await resp.json();
     expect(json.data.stats.markerPlacements.spotters).toBeGreaterThanOrEqual(1);
+  });
+});
+
+test.describe("Warden theme", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await page.waitForSelector(".app", { timeout: 15_000 });
+  });
+
+  test("CSS custom properties use Warden color palette", async ({ page }) => {
+    const root = page.locator(":root");
+    const vars = await root.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return {
+        bgDark: s.getPropertyValue("--bg-dark").trim(),
+        bgPanel: s.getPropertyValue("--bg-panel").trim(),
+        bgInput: s.getPropertyValue("--bg-input").trim(),
+        accent: s.getPropertyValue("--accent").trim(),
+        accentGreen: s.getPropertyValue("--accent-green").trim(),
+        accentBlue: s.getPropertyValue("--accent-blue").trim(),
+        text: s.getPropertyValue("--text").trim(),
+        textDim: s.getPropertyValue("--text-dim").trim(),
+        border: s.getPropertyValue("--border").trim(),
+      };
+    });
+
+    expect(vars.bgDark).toBe("#141c28");
+    expect(vars.bgPanel).toBe("#1a2840");
+    expect(vars.bgInput).toBe("#1f3358");
+    expect(vars.accent).toBe("#cf8e3e");
+    expect(vars.accentGreen).toBe("#5ab882");
+    expect(vars.accentBlue).toBe("#4a8fd4");
+    expect(vars.text).toBe("#d6dce6");
+    expect(vars.textDim).toBe("#7888a0");
+    expect(vars.border).toBe("#283a58");
+  });
+
+  test("header uses Warden accent color", async ({ page }) => {
+    const h1 = page.locator(".header h1");
+    const color = await h1.evaluate((el) => getComputedStyle(el).color);
+    // --accent: #cf8e3e → rgb(207, 142, 62)
+    expect(color).toBe("rgb(207, 142, 62)");
+  });
+
+  test("sidebar panel uses Warden navy background", async ({ page }) => {
+    const sidebar = page.locator(".sidebar");
+    const bgColor = await sidebar.evaluate(
+      (el) => getComputedStyle(el).backgroundColor,
+    );
+    // --bg-panel: #1a2840 → rgb(26, 40, 64)
+    expect(bgColor).toBe("rgb(26, 40, 64)");
+  });
+
+  test("form inputs use Warden blue background", async ({ page }) => {
+    const select = page.locator(".sidebar .panel select").first();
+    const bgColor = await select.evaluate(
+      (el) => getComputedStyle(el).backgroundColor,
+    );
+    // --bg-input: #1f3358 → rgb(31, 51, 88)
+    expect(bgColor).toBe("rgb(31, 51, 88)");
+  });
+
+  test("gun marker uses tactical green", async ({ page }) => {
+    await page
+      .locator(".placement-mode button", { hasText: "Gun" })
+      .click();
+
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await mapContainer.click({
+      position: { x: box!.width / 2, y: box!.height / 2 },
+    });
+
+    // Gun markers are inline SVG circles with fill="#5ab882"
+    const gunMarker = page.locator('.map-container svg circle[fill="#5ab882"]');
+    await expect(gunMarker.first()).toBeVisible({ timeout: 5000 });
+
+    const fill = await gunMarker.first().getAttribute("fill");
+    expect(fill).toBe("#5ab882");
+  });
+
+  test("target marker uses amber accent", async ({ page }) => {
+    await page
+      .locator(".placement-mode button", { hasText: "Target" })
+      .click();
+
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await mapContainer.click({
+      position: { x: box!.width / 2, y: box!.height / 2 },
+    });
+
+    // Target markers are inline SVG circles with fill="#cf8e3e"
+    const targetMarker = page.locator('.map-container svg circle[fill="#cf8e3e"]');
+    await expect(targetMarker.first()).toBeVisible({ timeout: 5000 });
+
+    const fill = await targetMarker.first().getAttribute("fill");
+    expect(fill).toBe("#cf8e3e");
+  });
+});
+
+test.describe("Theme toggle", () => {
+  test.beforeEach(async ({ page }) => {
+    // Clear localStorage to start fresh each test
+    await page.goto("/");
+    await page.evaluate(() => localStorage.removeItem("faction"));
+    await page.reload();
+    await page.waitForSelector(".app", { timeout: 15_000 });
+  });
+
+  test("faction toggle renders in header with Warden active", async ({ page }) => {
+    const toggle = page.locator(".header .faction-toggle");
+    await expect(toggle).toBeVisible();
+
+    const wardenBtn = toggle.locator("button", { hasText: "Warden" });
+    const colonialBtn = toggle.locator("button", { hasText: "Colonial" });
+    await expect(wardenBtn).toBeVisible();
+    await expect(colonialBtn).toBeVisible();
+    await expect(wardenBtn).toHaveClass(/active/);
+    await expect(colonialBtn).not.toHaveClass(/active/);
+  });
+
+  test("clicking Colonial switches to Colonial theme", async ({ page }) => {
+    const colonialBtn = page.locator(".header .faction-toggle button", { hasText: "Colonial" });
+    await colonialBtn.click();
+
+    // Colonial button should be active, Warden should not
+    await expect(colonialBtn).toHaveClass(/active/);
+    const wardenBtn = page.locator(".header .faction-toggle button", { hasText: "Warden" });
+    await expect(wardenBtn).not.toHaveClass(/active/);
+
+    // App div should have colonial class
+    const app = page.locator(".app");
+    await expect(app).toHaveClass(/colonial/);
+
+    // CSS custom properties should reflect Colonial palette
+    const accent = await app.evaluate((el) =>
+      getComputedStyle(el).getPropertyValue("--accent").trim(),
+    );
+    expect(accent).toBe("#6fbf5e");
+  });
+
+  test("clicking Warden switches back to Warden theme", async ({ page }) => {
+    // Switch to Colonial first
+    const colonialBtn = page.locator(".header .faction-toggle button", { hasText: "Colonial" });
+    await colonialBtn.click();
+    await expect(colonialBtn).toHaveClass(/active/);
+
+    // Switch back to Warden
+    const wardenBtn = page.locator(".header .faction-toggle button", { hasText: "Warden" });
+    await wardenBtn.click();
+    await expect(wardenBtn).toHaveClass(/active/);
+    await expect(colonialBtn).not.toHaveClass(/active/);
+
+    // App div should NOT have colonial class
+    const app = page.locator(".app");
+    await expect(app).not.toHaveClass(/colonial/);
+
+    // CSS should be back to Warden
+    const accent = await app.evaluate((el) =>
+      getComputedStyle(el).getPropertyValue("--accent").trim(),
+    );
+    expect(accent).toBe("#cf8e3e");
+  });
+
+  test("gun and target markers render correctly in Colonial theme", async ({
+    page,
+  }) => {
+    // Switch to Colonial
+    const colonialBtn = page.locator(".header .faction-toggle button", { hasText: "Colonial" });
+    await colonialBtn.click();
+    await expect(colonialBtn).toHaveClass(/active/);
+
+    // Place a gun
+    await page
+      .locator(".placement-mode button", { hasText: "Gun" })
+      .click();
+    const mapContainer = page.locator(".map-container");
+    const box = await mapContainer.boundingBox();
+    expect(box).not.toBeNull();
+    await mapContainer.click({
+      position: { x: box!.width * 0.3, y: box!.height / 2 },
+    });
+
+    // Place a target
+    await page
+      .locator(".placement-mode button", { hasText: "Target" })
+      .click();
+    await mapContainer.click({
+      position: { x: box!.width * 0.7, y: box!.height / 2 },
+    });
+
+    // Gun marker should still use green (#5ab882)
+    const gunMarker = page.locator(
+      '.map-container svg circle[fill="#5ab882"]',
+    );
+    await expect(gunMarker.first()).toBeVisible({ timeout: 5000 });
+
+    // Target marker should use Colonial green (#6fbf5e)
+    const targetMarker = page.locator(
+      '.map-container svg circle[fill="#6fbf5e"]',
+    );
+    await expect(targetMarker.first()).toBeVisible({ timeout: 5000 });
   });
 });
