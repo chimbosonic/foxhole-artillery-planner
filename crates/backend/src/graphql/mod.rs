@@ -197,8 +197,10 @@ pub struct CreatePlanInput {
 // Helpers
 
 fn ctx_data<'a, T: Send + Sync + 'static>(ctx: &'a Context<'a>) -> async_graphql::Result<&'a T> {
-    ctx.data::<T>()
-        .map_err(|_| async_graphql::Error::new("Internal server error: missing context data"))
+    ctx.data::<T>().map_err(|_| {
+        tracing::error!(type_name = std::any::type_name::<T>(), "Missing context data");
+        async_graphql::Error::new("Internal server error: missing context data")
+    })
 }
 
 fn validate_name(name: &str) -> async_graphql::Result<()> {
@@ -515,7 +517,10 @@ impl MutationRoot {
     ) -> async_graphql::Result<GqlPlan> {
         let assets = ctx_data::<Arc<Assets>>(ctx)?;
         let storage = ctx_data::<Arc<Storage>>(ctx)?;
-        validate_create_plan(&input, assets)?;
+        if let Err(e) = validate_create_plan(&input, assets) {
+            tracing::warn!(error = %e.message, "Plan validation failed");
+            return Err(e);
+        }
         let now = chrono::Utc::now().to_rfc3339();
 
         let to_positions = |v: Option<Vec<PositionInput>>| -> Vec<Position> {
@@ -548,26 +553,32 @@ impl MutationRoot {
             updated_at: now,
         };
 
-        storage
-            .save_plan(&plan)
-            .map_err(async_graphql::Error::new)?;
+        storage.save_plan(&plan).map_err(|e| {
+            tracing::error!(error = %e, "Failed to save plan");
+            async_graphql::Error::new(e)
+        })?;
 
+        tracing::info!(plan_id = %plan.id, map = %plan.map_id, "Plan created");
         Ok(GqlPlan::from(plan))
     }
 
     async fn track_target_placement(&self, ctx: &Context<'_>) -> async_graphql::Result<bool> {
         let storage = ctx_data::<Arc<Storage>>(ctx)?;
-        storage
-            .increment_marker_placement("target")
-            .map_err(async_graphql::Error::new)?;
+        storage.increment_marker_placement("target").map_err(|e| {
+            tracing::warn!(error = %e, "Failed to track target placement");
+            async_graphql::Error::new(e)
+        })?;
+        tracing::info!("Target placement tracked");
         Ok(true)
     }
 
     async fn track_spotter_placement(&self, ctx: &Context<'_>) -> async_graphql::Result<bool> {
         let storage = ctx_data::<Arc<Storage>>(ctx)?;
-        storage
-            .increment_marker_placement("spotter")
-            .map_err(async_graphql::Error::new)?;
+        storage.increment_marker_placement("spotter").map_err(|e| {
+            tracing::warn!(error = %e, "Failed to track spotter placement");
+            async_graphql::Error::new(e)
+        })?;
+        tracing::info!("Spotter placement tracked");
         Ok(true)
     }
 
@@ -588,9 +599,11 @@ impl MutationRoot {
             )));
         }
         let storage = ctx_data::<Arc<Storage>>(ctx)?;
-        storage
-            .increment_gun_placement(&weapon_slug)
-            .map_err(async_graphql::Error::new)?;
+        storage.increment_gun_placement(&weapon_slug).map_err(|e| {
+            tracing::warn!(error = %e, weapon = %weapon_slug, "Failed to track gun placement");
+            async_graphql::Error::new(e)
+        })?;
+        tracing::info!(weapon = %weapon_slug, "Gun placement tracked");
         Ok(true)
     }
 }

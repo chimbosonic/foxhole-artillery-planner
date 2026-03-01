@@ -21,7 +21,7 @@ impl Assets {
         let weapons: Vec<Weapon> = serde_json::from_str(&weapons_data)
             .unwrap_or_else(|e| panic!("Failed to parse weapons.json: {}", e));
 
-        println!("Loaded {} maps, {} weapons", maps.len(), weapons.len());
+        tracing::info!(maps = maps.len(), weapons = weapons.len(), "Loaded game assets");
 
         Assets { maps, weapons }
     }

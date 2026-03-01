@@ -8,6 +8,7 @@ services:
     environment:
       - PORT=3000
       - CORS_ORIGIN=https://example.com
+      - RUST_LOG=foxhole_backend=info
     restart: unless-stopped
 
 volumes:

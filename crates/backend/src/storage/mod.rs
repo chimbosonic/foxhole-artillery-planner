@@ -27,6 +27,8 @@ impl Storage {
         }
         write_txn.commit().expect("Failed to commit initial txn");
 
+        tracing::info!(path = %path.display(), "Database opened");
+
         Arc::new(Storage {
             db,
             path: path.to_path_buf(),

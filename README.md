@@ -115,6 +115,10 @@ This starts the app on port 3000 with a named volume for database persistence. S
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `3000` | HTTP server listen port |
+| `RUST_LOG` | `foxhole_backend=info` | Log level filter ([`tracing` EnvFilter](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html)) |
+| `CORS_ORIGIN` | localhost dev origins | Allowed CORS origin (e.g. `https://arty.dp42.dev`) |
+| `DB_PATH` | `data/plans.redb` | Path to the ReDB database file |
+| `ASSETS_DIR` | `assets` | Path to the game assets directory |
 
 ## GraphQL API
 
@@ -131,8 +135,9 @@ The API is available at `/graphql`. Key queries and mutations:
 ### Mutations
 
 - `createPlan(input: CreatePlanInput!)` — save a new plan
-- `updatePlan(input: UpdatePlanInput!)` — update an existing plan
-- `deletePlan(id: ID!)` — delete a plan
+- `trackGunPlacement(weaponSlug: String!)` — track a gun placement
+- `trackTargetPlacement` — track a target placement
+- `trackSpotterPlacement` — track a spotter placement
 
 ### Stats API
 

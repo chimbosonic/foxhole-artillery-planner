@@ -37,6 +37,7 @@ RUN mkdir -p data
 
 ENV PORT=3000
 ENV CORS_ORIGIN=https://arty.dp42.dev
+ENV RUST_LOG=foxhole_backend=info
 EXPOSE 3000
 
 CMD ["./foxhole-backend"]

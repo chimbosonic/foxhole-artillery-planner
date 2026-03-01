@@ -20,7 +20,7 @@ Zero `@media` queries. The `320px` sidebar is fixed — the app is completely un
 ### 4. No input validation on GraphQL mutations — fixed
 **File:** `crates/backend/src/graphql/mod.rs`
 
-~~Plan names have no length limit, coordinates aren't bounds-checked (could be NaN/Infinity), `gun_target_indices` can reference out-of-bounds targets, wind direction isn't validated to 0-360. A crafted request could produce garbage data.~~ **Addressed:** Added field-level validators (`validate_name`, `validate_map_id`, `validate_weapon_ids`, `validate_position`, `validate_positions`, `validate_gun_target_indices`, `validate_wind_direction`, `validate_wind_strength`) called from `validate_create_plan` and `validate_update_plan`. Rejects: names >200 chars, unknown map/weapon IDs, NaN/Infinity/out-of-bounds coordinates, out-of-bounds target indices, wind direction outside [0,360), wind strength >5. 15 tests cover validation and happy paths.
+~~Plan names have no length limit, coordinates aren't bounds-checked (could be NaN/Infinity), `gun_target_indices` can reference out-of-bounds targets, wind direction isn't validated to 0-360. A crafted request could produce garbage data.~~ **Addressed:** Added field-level validators (`validate_name`, `validate_map_id`, `validate_weapon_ids`, `validate_position`, `validate_positions`, `validate_gun_target_indices`, `validate_wind_direction`, `validate_wind_strength`) called from `validate_create_plan`. Rejects: names >200 chars, unknown map/weapon IDs, NaN/Infinity/out-of-bounds coordinates, out-of-bounds target indices, wind direction outside [0,360), wind strength >5. Empty weapon IDs are also allowed (guns placed without a weapon selected). Unused `update_plan` and `delete_plan` mutations were removed. 12 tests cover validation and happy paths.
 
 ### 5. Permissive CORS — fixed
 **File:** `crates/backend/src/main.rs`
@@ -59,12 +59,12 @@ Pairing logic appears in at least 3 places: gun-selected click near target, targ
 ### 11. No GraphQL resolver tests — fixed
 **File:** `crates/backend/src/graphql/mod.rs`
 
-~~Zero unit tests for any query or mutation handler. All backend logic is only tested via E2E, which is slow and can't cover edge cases well.~~ **Addressed:** 25 unit tests added covering missing-context errors (10), valid-context smoke tests (2), and input validation (13 — bad maps, bad weapons, out-of-bounds positions, negative coords, wind limits, index bounds, plus happy paths).
+~~Zero unit tests for any query or mutation handler. All backend logic is only tested via E2E, which is slow and can't cover edge cases well.~~ **Addressed:** 21 unit tests added covering missing-context errors (8), valid-context smoke tests (2), and input validation (11 — bad maps, bad weapons, out-of-bounds positions, negative coords, wind limits, index bounds, plus happy paths).
 
-### 12. `println!` instead of structured logging
+### 12. `println!` instead of structured logging — fixed
 **File:** `crates/backend/src/main.rs:24, 85-86`
 
-No log levels, timestamps, or structured output. Makes production debugging difficult.
+~~No log levels, timestamps, or structured output. Makes production debugging difficult.~~ **Addressed:** Replaced all `println!` calls with `tracing` macros (`info!`, `warn!`, `error!`). Added `tracing-subscriber` with `EnvFilter` for runtime log-level control via `RUST_LOG` env var. Default level is `foxhole_backend=info`. Structured fields used throughout (plan_id, map, weapon, error, etc.). Bind/serve failures now log at `error` level before exiting.
 
 ---
 
@@ -108,4 +108,4 @@ SVG markers have `pointer-events: none` and no ARIA labels. Form inputs lack ass
 - ~~No test for API/network failure scenarios~~ **Added:** `e2e/planner.spec.ts` — "Error handling" describe block using `page.route()` to intercept GraphQL with 500
 - ~~No unit tests for backend GraphQL resolvers~~ **Added:** `crates/backend/src/graphql/mod.rs` — 25 tests (missing-context errors, validation rejections, happy paths)
 - ~~No unit test for gun==target, wind strength >5, or NaN coordinate edge cases~~ **Added:** `crates/shared/src/calc.rs` — 5 new edge case tests (gun==target, wind strength 10, NaN, Infinity, wind strength 0)
-- **Added:** `crates/backend/src/storage/mod.rs` — 6 new Plan CRUD tests (save/get, not-found, delete, count, overwrite)
+- **Added:** `crates/backend/src/storage/mod.rs` — 4 new Plan CRUD tests (save/get, not-found, count, overwrite)

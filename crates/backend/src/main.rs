@@ -81,6 +81,13 @@ fn build_app(schema: Schema, allowed_origins: &[HeaderValue]) -> Router {
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "foxhole_backend=info".into()),
+        )
+        .init();
+
     let assets_dir =
         PathBuf::from(std::env::var("ASSETS_DIR").unwrap_or_else(|_| "assets".to_string()));
     let loaded_assets = Arc::new(assets::Assets::load(&assets_dir));
@@ -105,11 +112,19 @@ async fn main() {
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let addr = format!("0.0.0.0:{}", port);
-    println!("Server running at http://localhost:{}", port);
-    println!("GraphiQL playground at http://localhost:{}/graphql", port);
+    tracing::info!(port = %port, "Server starting at http://localhost:{}", port);
+    tracing::info!("GraphiQL playground at http://localhost:{}/graphql", port);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::error!(addr = %addr, error = %e, "Failed to bind TCP listener");
+            std::process::exit(1);
+        });
+    axum::serve(listener, app).await.unwrap_or_else(|e| {
+        tracing::error!(error = %e, "Server error");
+        std::process::exit(1);
+    });
 }
 
 async fn serve_index() -> Html<String> {
