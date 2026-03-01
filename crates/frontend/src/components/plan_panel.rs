@@ -26,9 +26,10 @@ pub fn PlanPanel(
                 }
             }
             if let Some(err) = &*save_error.read() {
-                div { class: "save-error",
+                div { class: "save-error", role: "alert",
                     span { "{err}" }
                     button {
+                        "aria-label": "Dismiss error",
                         onclick: move |_| save_error.set(None),
                         "\u{2715}"
                     }

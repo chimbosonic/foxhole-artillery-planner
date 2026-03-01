@@ -635,6 +635,7 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                                 w_dir, Some(w_str),
                             ).await {
                                 Ok(plan) => {
+                                    save_error.set(None);
                                     let window = web_sys::window().unwrap();
                                     let origin = window.location().origin().unwrap();
                                     plan_url.set(Some(api::build_plan_url(&origin, &plan.id)));
