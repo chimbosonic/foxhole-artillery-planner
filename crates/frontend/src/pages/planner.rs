@@ -704,7 +704,6 @@ pub fn Planner(plan_id: Option<String>) -> Element {
                     wind_direction: wind_direction,
                     wind_strength: wind_strength,
                     reset_view_counter: reset_view_counter,
-                    faction: faction,
                 }
             }
 

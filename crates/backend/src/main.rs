@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::http::{HeaderValue, Method};
-use axum::{extract::State, response::Html, routing::get, Router};
+use axum::{extract::DefaultBodyLimit, extract::State, response::Html, routing::get, Router};
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
@@ -77,6 +77,7 @@ fn build_app(schema: Schema, allowed_origins: &[HeaderValue]) -> Router {
         .route("/plan/{id}", get(serve_index))
         .with_state(schema)
         .merge(static_files)
+        .layer(DefaultBodyLimit::max(256 * 1024)) // 256 KB
         .layer(cors_layer(allowed_origins))
         .layer(CompressionLayer::new())
 }

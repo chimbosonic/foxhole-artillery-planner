@@ -41,7 +41,7 @@ struct ThemeColors {
     accuracy_fill: &'static str,
 }
 
-const WARDEN_COLORS: ThemeColors = ThemeColors {
+const MARKER_COLORS: ThemeColors = ThemeColors {
     gun: "#5ab882",
     target: "#c43030",
     spotter: "#4a8fd4",
@@ -51,24 +51,6 @@ const WARDEN_COLORS: ThemeColors = ThemeColors {
     firing_line_stroke: "rgba(196,48,48,0.85)",
     accuracy_fill: "rgba(196,48,48,0.25)",
 };
-
-const COLONIAL_COLORS: ThemeColors = ThemeColors {
-    gun: "#5ab882",
-    target: "#c43030",
-    spotter: "#4a8fd4",
-    target_label: "#f0a0a0",
-    spotter_label: "#b3d4f0",
-    min_range_fill: "rgba(196,48,48,0.12)",
-    firing_line_stroke: "rgba(196,48,48,0.85)",
-    accuracy_fill: "rgba(196,48,48,0.25)",
-};
-
-fn theme_colors(faction: Faction) -> &'static ThemeColors {
-    match faction {
-        Faction::Warden => &WARDEN_COLORS,
-        Faction::Colonial => &COLONIAL_COLORS,
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlacementMode {
@@ -729,7 +711,6 @@ pub fn MapView(
     wind_direction: Signal<Option<f64>>,
     wind_strength: Signal<u32>,
     reset_view_counter: Signal<u64>,
-    faction: Signal<Faction>,
 ) -> Element {
     let image_url = format!("/static/images/maps/{}.webp", map_file_name);
 
@@ -786,7 +767,7 @@ pub fn MapView(
     let mut pinch_start_pan_y = use_signal(|| 0.0_f64);
 
     // Memoize SVG generation — only recomputes when positions, zoom, selection,
-    // faction, weapons, pairings, or accuracy radii change. Pan changes (pan_x/pan_y)
+    // weapons, pairings, or accuracy radii change. Pan changes (pan_x/pan_y)
     // are read outside this memo so they don't trigger SVG rebuilds.
     let svg_html = use_memo(move || {
         let guns = gun_positions.read();
@@ -803,7 +784,7 @@ pub fn MapView(
 
         let cur_zoom = *zoom.read();
         let cur_selected = *selected_marker.read();
-        let colors = theme_colors(*faction.read());
+        let colors = &MARKER_COLORS;
         let cw = container_rect().map(|r| r.width()).unwrap_or(REFERENCE_WIDTH);
 
         let svg_content = build_svg_content(
@@ -1226,7 +1207,7 @@ mod tests {
         // Gun 0 → Target 1, Gun 1 → Target 0
         let pairings = vec![Some(1), Some(0)];
         let mut svg = String::new();
-        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0, &WARDEN_COLORS);
+        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0, &MARKER_COLORS);
         // Should draw line from gun 0 to target 1
         assert!(svg.contains(r#"x1="100""#));
         assert!(svg.contains(r#"y1="200""#));
@@ -1245,7 +1226,7 @@ mod tests {
         let targets = vec![(150.0, 250.0)];
         let pairings = vec![None]; // Gun 0 unpaired
         let mut svg = String::new();
-        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0, &WARDEN_COLORS);
+        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0, &MARKER_COLORS);
         assert!(
             svg.is_empty(),
             "Unpaired gun should not produce a firing line"
@@ -1258,7 +1239,7 @@ mod tests {
         let targets = vec![(150.0, 250.0)];
         let pairings = vec![Some(5)]; // Out-of-bounds target index
         let mut svg = String::new();
-        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0, &WARDEN_COLORS);
+        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0, &MARKER_COLORS);
         assert!(
             svg.is_empty(),
             "Invalid target index should not produce a firing line"
@@ -1272,7 +1253,7 @@ mod tests {
         // Both guns target the same target
         let pairings = vec![Some(0), Some(0)];
         let mut svg = String::new();
-        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0, &WARDEN_COLORS);
+        build_firing_lines(&mut svg, &guns, &targets, &pairings, 1.0, &MARKER_COLORS);
         // Count the number of line elements — should be 2
         let line_count = svg.matches("<line").count();
         assert_eq!(
@@ -1290,7 +1271,7 @@ mod tests {
         let pairings = vec![Some(1)]; // Gun 0 → Target 1
         let accuracy = vec![Some(10.0)];
         let mut svg = String::new();
-        build_accuracy_circles(&mut svg, &guns, &targets, &pairings, &accuracy, 1.0, &WARDEN_COLORS);
+        build_accuracy_circles(&mut svg, &guns, &targets, &pairings, &accuracy, 1.0, &MARKER_COLORS);
         // Circle should be at target 1's position
         assert!(svg.contains(r#"cx="350""#));
         assert!(svg.contains(r#"cy="450""#));
@@ -1305,7 +1286,7 @@ mod tests {
         let pairings = vec![None];
         let accuracy = vec![Some(10.0)];
         let mut svg = String::new();
-        build_accuracy_circles(&mut svg, &guns, &targets, &pairings, &accuracy, 1.0, &WARDEN_COLORS);
+        build_accuracy_circles(&mut svg, &guns, &targets, &pairings, &accuracy, 1.0, &MARKER_COLORS);
         assert!(svg.is_empty());
     }
 

@@ -223,6 +223,13 @@ fn validate_map_id(map_id: &str, assets: &Assets) -> async_graphql::Result<()> {
 }
 
 fn validate_weapon_ids(weapon_ids: &[String], assets: &Assets) -> async_graphql::Result<()> {
+    if weapon_ids.len() > MAX_POSITIONS {
+        return Err(async_graphql::Error::new(format!(
+            "weapon_ids: too many entries ({}, max {})",
+            weapon_ids.len(),
+            MAX_POSITIONS
+        )));
+    }
     for wid in weapon_ids {
         if wid.is_empty() || wid == UNASSIGNED_WEAPON {
             continue;
@@ -253,10 +260,20 @@ fn validate_position(pos: &PositionInput, field_name: &str) -> async_graphql::Re
     Ok(())
 }
 
+const MAX_POSITIONS: usize = 50;
+
 fn validate_positions(
     positions: &[PositionInput],
     field_name: &str,
 ) -> async_graphql::Result<()> {
+    if positions.len() > MAX_POSITIONS {
+        return Err(async_graphql::Error::new(format!(
+            "{}: too many entries ({}, max {})",
+            field_name,
+            positions.len(),
+            MAX_POSITIONS
+        )));
+    }
     for (i, pos) in positions.iter().enumerate() {
         validate_position(pos, &format!("{}[{}]", field_name, i))?;
     }
@@ -267,6 +284,13 @@ fn validate_gun_target_indices(
     indices: &[Option<i32>],
     target_count: usize,
 ) -> async_graphql::Result<()> {
+    if indices.len() > MAX_POSITIONS {
+        return Err(async_graphql::Error::new(format!(
+            "gun_target_indices: too many entries ({}, max {})",
+            indices.len(),
+            MAX_POSITIONS
+        )));
+    }
     for (i, idx) in indices.iter().enumerate() {
         if let Some(v) = idx {
             if *v < 0 {
@@ -965,6 +989,69 @@ mod tests {
             .await;
         assert!(!resp.errors.is_empty());
         assert!(resp.errors[0].message.contains("out of bounds"));
+    }
+
+    #[tokio::test]
+    async fn test_create_plan_too_many_gun_positions_returns_error() {
+        let (schema, _dir) = schema_with_context();
+        // Build 51 positions (exceeds MAX_POSITIONS of 50)
+        let positions: Vec<String> = (0..51).map(|_| "{ x: 100, y: 100 }".to_string()).collect();
+        let positions_str = positions.join(", ");
+        let query = format!(
+            r#"mutation {{
+                createPlan(input: {{
+                    name: "test",
+                    mapId: "test-map",
+                    weaponIds: [],
+                    gunPositions: [{}]
+                }}) {{ id }}
+            }}"#,
+            positions_str
+        );
+        let resp = schema.execute(&query).await;
+        assert!(!resp.errors.is_empty());
+        assert!(resp.errors[0].message.contains("too many entries"));
+    }
+
+    #[tokio::test]
+    async fn test_create_plan_too_many_weapon_ids_returns_error() {
+        let (schema, _dir) = schema_with_context();
+        let ids: Vec<String> = (0..51).map(|_| r#""unassigned""#.to_string()).collect();
+        let ids_str = ids.join(", ");
+        let query = format!(
+            r#"mutation {{
+                createPlan(input: {{
+                    name: "test",
+                    mapId: "test-map",
+                    weaponIds: [{}]
+                }}) {{ id }}
+            }}"#,
+            ids_str
+        );
+        let resp = schema.execute(&query).await;
+        assert!(!resp.errors.is_empty());
+        assert!(resp.errors[0].message.contains("too many entries"));
+    }
+
+    #[tokio::test]
+    async fn test_create_plan_at_max_positions_succeeds() {
+        let (schema, _dir) = schema_with_context();
+        // Exactly 50 should be fine
+        let positions: Vec<String> = (0..50).map(|_| "{ x: 100, y: 100 }".to_string()).collect();
+        let positions_str = positions.join(", ");
+        let query = format!(
+            r#"mutation {{
+                createPlan(input: {{
+                    name: "test",
+                    mapId: "test-map",
+                    weaponIds: [],
+                    gunPositions: [{}]
+                }}) {{ id }}
+            }}"#,
+            positions_str
+        );
+        let resp = schema.execute(&query).await;
+        assert!(resp.errors.is_empty(), "unexpected errors: {:?}", resp.errors);
     }
 
     #[tokio::test]
