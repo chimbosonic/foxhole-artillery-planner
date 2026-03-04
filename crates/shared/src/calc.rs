@@ -47,15 +47,16 @@ pub fn wind_drift_at_range(weapon: &Weapon, dist: f64) -> f64 {
 }
 
 /// Compute the wind offset vector in meters (dx_wind, dy_wind).
-/// Wind direction is where the wind blows FROM (compass degrees).
+/// Wind direction is where the wind pushes shells TO (the direction flags point).
+/// In Foxhole, wind flags fly in the direction of the wind, so players read the
+/// flag bearing directly from their compass.
 /// Drift magnitude scales with weapon type, range, and wind strength (0-5).
 fn wind_offset(wind: &WindInput, weapon: &Weapon, dist: f64) -> (f64, f64) {
     let base_drift = wind_drift_at_range(weapon, dist);
     let clamped_strength = (wind.strength as f64).min(5.0);
     let strength_m = base_drift * (clamped_strength / 5.0);
-    // Wind blows FROM `direction`, so shells drift TOWARD the opposite direction.
-    // Convert "blows from" to "pushes to": add 180 degrees.
-    let push_dir = (wind.direction + 180.0) % 360.0;
+    // Wind direction is already the push direction (where shells drift toward).
+    let push_dir = wind.direction;
     let rad = push_dir.to_radians();
     // Convert compass bearing to vector: north=negative Y, east=positive X
     let dx = rad.sin() * strength_m;
@@ -268,15 +269,15 @@ mod tests {
         let target = Position { x: 0.0, y: -200.0 };
         let w = test_weapon();
         let wind = WindInput {
-            direction: 270.0, // wind from west
+            direction: 270.0, // wind pushes west (flags point west)
             strength: 3,
         };
         let sol = firing_solution(gun, target, &w, Some(&wind));
-        // Wind from west pushes east, so compensation aims west of target
+        // Wind pushes west, so compensation aims east of target
         assert!(sol.wind_adjusted_azimuth.is_some());
         let adj_az = sol.wind_adjusted_azimuth.unwrap();
-        // Original azimuth is 0 (north), wind pushes east so compensate by aiming slightly west (< 360)
-        assert!(adj_az > 350.0 || adj_az < 10.0); // roughly north, slightly west
+        // Original azimuth is 0 (north), wind pushes west so compensate by aiming slightly east (> 0)
+        assert!(adj_az > 0.0 && adj_az < 20.0); // roughly north, slightly east
     }
 
     #[test]

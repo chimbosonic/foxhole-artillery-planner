@@ -24,7 +24,7 @@ pub fn WindInput(
 
     rsx! {
         div { class: "panel",
-            h3 { "Wind" }
+            h3 { "Wind direction blowing to" }
             div { class: "wind-grid",
                 // First row: NW, N, NE
                 for &(deg, label) in &grid_order[0..3] {
