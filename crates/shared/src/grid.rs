@@ -1,7 +1,9 @@
 /// Foxhole map grid system.
 ///
 /// Each hex region is 2184m wide x 1890m tall.
-/// Grid: 17 columns (A-Q) x 15 rows (1-15).
+/// Grid: 17 columns (A-Q) x 15 rows (1-15), each cell exactly 125m x 125m.
+/// The grid starts at map origin and does NOT span the full region — there's
+/// unused space past column Q (2125m) and row 15 (1875m).
 /// Each grid cell has a 3x3 keypad sub-grid (k1-k9).
 /// Map images are 2048x1776 pixels.
 // World dimensions in meters
@@ -19,9 +21,12 @@ pub const GRID_ROWS: usize = 15; // 1 through 15
 // Small inset to keep exact-boundary positions inside the last grid cell/keypad
 const BOUNDARY_EPSILON: f64 = 0.01;
 
-// Derived constants
-pub const GRID_CELL_WIDTH_M: f64 = MAP_WIDTH_M / GRID_COLS as f64; // ~128.5m
-pub const GRID_CELL_HEIGHT_M: f64 = MAP_HEIGHT_M / GRID_ROWS as f64; // 126.0m
+// Grid cell size — empirically verified as exactly 125m × 125m
+pub const GRID_CELL_SIZE_M: f64 = 125.0;
+
+// Total grid extent in meters (smaller than the full map)
+const GRID_WIDTH_M: f64 = GRID_COLS as f64 * GRID_CELL_SIZE_M; // 2125m
+const GRID_HEIGHT_M: f64 = GRID_ROWS as f64 * GRID_CELL_SIZE_M; // 1875m
 
 pub const METERS_PER_PIXEL_X: f64 = MAP_WIDTH_M / MAP_WIDTH_PX;
 pub const METERS_PER_PIXEL_Y: f64 = MAP_HEIGHT_M / MAP_HEIGHT_PX;
@@ -49,19 +54,19 @@ pub fn col_letter(col: usize) -> char {
 
 /// Format a meter position as a Foxhole grid coordinate (e.g., "G9k3").
 pub fn format_grid_coord(m_x: f64, m_y: f64) -> String {
-    // Clamp to map bounds
-    let m_x = m_x.clamp(0.0, MAP_WIDTH_M - BOUNDARY_EPSILON);
-    let m_y = m_y.clamp(0.0, MAP_HEIGHT_M - BOUNDARY_EPSILON);
+    // Clamp to grid bounds (not full map bounds)
+    let m_x = m_x.clamp(0.0, GRID_WIDTH_M - BOUNDARY_EPSILON);
+    let m_y = m_y.clamp(0.0, GRID_HEIGHT_M - BOUNDARY_EPSILON);
 
-    let col = (m_x / GRID_CELL_WIDTH_M) as usize;
-    let row = (m_y / GRID_CELL_HEIGHT_M) as usize;
+    let col = (m_x / GRID_CELL_SIZE_M) as usize;
+    let row = (m_y / GRID_CELL_SIZE_M) as usize;
 
     let col = col.min(GRID_COLS - 1);
     let row = row.min(GRID_ROWS - 1);
 
     // Sub-grid position within the cell (0.0 to 1.0)
-    let sub_x = (m_x - col as f64 * GRID_CELL_WIDTH_M) / GRID_CELL_WIDTH_M;
-    let sub_y = (m_y - row as f64 * GRID_CELL_HEIGHT_M) / GRID_CELL_HEIGHT_M;
+    let sub_x = (m_x - col as f64 * GRID_CELL_SIZE_M) / GRID_CELL_SIZE_M;
+    let sub_y = (m_y - row as f64 * GRID_CELL_SIZE_M) / GRID_CELL_SIZE_M;
 
     // Keypad mapping: 3x3 grid, numpad layout
     // k7 k8 k9  (top)
@@ -92,12 +97,12 @@ pub fn format_grid_coord(m_x: f64, m_y: f64) -> String {
 
 /// Get the pixel X position for a grid column line (0-based column index).
 pub fn grid_col_px(col: usize) -> f64 {
-    col as f64 * (MAP_WIDTH_PX / GRID_COLS as f64)
+    (col as f64 * GRID_CELL_SIZE_M) / METERS_PER_PIXEL_X
 }
 
 /// Get the pixel Y position for a grid row line (0-based row index).
 pub fn grid_row_px(row: usize) -> f64 {
-    row as f64 * (MAP_HEIGHT_PX / GRID_ROWS as f64)
+    (row as f64 * GRID_CELL_SIZE_M) / METERS_PER_PIXEL_Y
 }
 
 #[cfg(test)]
@@ -142,17 +147,25 @@ mod tests {
 
     #[test]
     fn test_format_grid_coord_center() {
-        // Center of the map: col 8 (I), row 7-8
-        let cx = MAP_WIDTH_M / 2.0;
-        let cy = MAP_HEIGHT_M / 2.0;
+        // Center of the grid: 2125/2 = 1062.5m, 1875/2 = 937.5m
+        let cx = GRID_WIDTH_M / 2.0;
+        let cy = GRID_HEIGHT_M / 2.0;
         let coord = format_grid_coord(cx, cy);
-        // Should be around I8 area
+        // col = 1062.5 / 125 = 8 (I), row = 937.5 / 125 = 7 (row 8)
         assert!(coord.starts_with('I'));
+        assert!(coord.contains("8k"));
     }
 
     #[test]
     fn test_format_grid_coord_bottom_right() {
-        // Near bottom-right should be Q15k3
+        // Near bottom-right of grid should be Q15k3
+        let coord = format_grid_coord(GRID_WIDTH_M - 1.0, GRID_HEIGHT_M - 1.0);
+        assert_eq!(coord, "Q15k3");
+    }
+
+    #[test]
+    fn test_format_grid_coord_past_grid() {
+        // Positions past the grid boundary clamp to Q15k3
         let coord = format_grid_coord(MAP_WIDTH_M - 1.0, MAP_HEIGHT_M - 1.0);
         assert_eq!(coord, "Q15k3");
     }
@@ -160,35 +173,38 @@ mod tests {
     #[test]
     fn test_format_grid_coord_keypad_layout() {
         // Test specific keypad positions within cell A1
-        let cw = GRID_CELL_WIDTH_M;
-        let ch = GRID_CELL_HEIGHT_M;
+        let cs = GRID_CELL_SIZE_M;
 
         // Top-left of A1 = k7
         assert_eq!(format_grid_coord(1.0, 1.0), "A1k7");
         // Top-center of A1 = k8
-        assert_eq!(format_grid_coord(cw / 2.0, 1.0), "A1k8");
+        assert_eq!(format_grid_coord(cs / 2.0, 1.0), "A1k8");
         // Top-right of A1 = k9
-        assert_eq!(format_grid_coord(cw - 1.0, 1.0), "A1k9");
+        assert_eq!(format_grid_coord(cs - 1.0, 1.0), "A1k9");
         // Middle-left of A1 = k4
-        assert_eq!(format_grid_coord(1.0, ch / 2.0), "A1k4");
+        assert_eq!(format_grid_coord(1.0, cs / 2.0), "A1k4");
         // Center of A1 = k5
-        assert_eq!(format_grid_coord(cw / 2.0, ch / 2.0), "A1k5");
+        assert_eq!(format_grid_coord(cs / 2.0, cs / 2.0), "A1k5");
         // Bottom-right of A1 = k3
-        assert_eq!(format_grid_coord(cw - 1.0, ch - 1.0), "A1k3");
+        assert_eq!(format_grid_coord(cs - 1.0, cs - 1.0), "A1k3");
     }
 
     #[test]
     fn test_grid_col_px() {
         assert!((grid_col_px(0) - 0.0).abs() < 1e-9);
-        let expected = MAP_WIDTH_PX / GRID_COLS as f64;
+        let expected = GRID_CELL_SIZE_M / METERS_PER_PIXEL_X;
         assert!((grid_col_px(1) - expected).abs() < 0.01);
+        // Last column line should be less than full image width
+        assert!(grid_col_px(GRID_COLS) < MAP_WIDTH_PX);
     }
 
     #[test]
     fn test_grid_row_px() {
         assert!((grid_row_px(0) - 0.0).abs() < 1e-9);
-        let expected = MAP_HEIGHT_PX / GRID_ROWS as f64;
+        let expected = GRID_CELL_SIZE_M / METERS_PER_PIXEL_Y;
         assert!((grid_row_px(1) - expected).abs() < 0.01);
+        // Last row line should be less than full image height
+        assert!(grid_row_px(GRID_ROWS) < MAP_HEIGHT_PX);
     }
 
     #[test]
